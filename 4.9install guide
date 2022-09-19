@@ -1,8 +1,7 @@
 # How to Install OpenShift 4.9 on Bare Metal (UPI)
 
-Published on: November 8, 2021 by [Pradeep Kumar](https://www.linuxtechi.com/author/pradeep/ "View all posts by Pradeep Kumar")
 
-Hello Techies, as you know Openshift provides container platform and can installed either on onprem or in public cloud using different methods like IPI (Installer Provisioned Installer), UPI (User Provisioned Infrastructure) and Assisted Bare Metal installer.
+Openshift provides container platform and can installed either on onprem or in public cloud using different methods like IPI (Installer Provisioned Installer), UPI (User Provisioned Infrastructure) and Assisted Bare Metal installer.
 
 In this post, we will demonstrate how to install Openshift 4.9 on bare metal nodes with UPI approach.
 
