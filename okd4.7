@@ -1,0 +1,1639 @@
+# okd4.7
+
+# 这大概是目前讲的最清楚的openshift部署文档了吧？
+
+Original mushroom IT淬冷 _2021-08-10 20:10_
+
+新的OKD4.x版本抛弃了3.x采用ansible安装的方法，转而采用bootstrap，因此整个安装流程有非常大的变化。  
+
+网上的安装文档没有一篇是照着做能装完不出问题的，我自己也踩了很多坑，也遇到了几个阴间版本||-_-||,所以特意拿最新版的okd发行做一版文档，避免踩坑。
+
+#   
+
+# 总体安装框架
+
+  
+
+整个安装过程需要的组件大体分为以下几个部分：
+
+  
+
+Bastion，做为部署安装的前置基础节点，提供http服务和registry的本地安装仓库服务，同时所有的ign点火文件，coreos所需要的ssh-rsa密钥等等都由这个节点生成。
+
+Bootstrap，okd4.x开始采用的，一个巨烦人的安装工具，需要一个独立节点部署，我还是喜欢3.11的ansible，不为别的，因为ansible我熟。
+
+Master，openshift的管理节点，同样基于coreos的平台。
+
+Worker，openshift的工作节点，同样基于coreos平台。
+
+  
+
+![Image](https://mmbiz.qpic.cn/mmbiz_png/5ociac3MIRw1otO3dGxvaf95jYnA4tLb4eo4YIrlwFKickCg7YTKibDCiap87pStks79azXMW7cSLTeTQRsLSXqQaw/640?wx_fmt=png&wxfrom=5&wx_lazy=1&wx_co=1)
+
+整体的okd4.x安装实际上分为三个部分：
+
+1.Bastion环境的搭建
+
+2.基础环境coreos的安装和部署
+
+3.Openshift的部署
+
+其中，第一部分最为繁琐，涉及很多基础设施的安装，比如DNS、load balance、image warehouse等等。在poc环境中，这些都可以装在bastion节点上，但是在生产环境中，这些基础设设施还是要尽可能的分开部署，并且提供可靠的高可用保证。
+
+第二部分操作较为简单，但是考虑到要做内核加载，手动敲的内容非常之多，敲错了就有可能悲剧，所以要仔细。如果用pxe的方法安装，又需要部署dhcp，pxe的pod，对于poc来说，太麻烦了，所以我果断放弃了这个方法，但是如果是生产环境的大规模部署，利用PXE boot是非常有必要的。
+
+第三部分虽然都是自动化的，但是仍然需要去查看大量的状态信息，确保安装的顺利进行。
+
+所以说，okd4.x的安装复杂度要比3.11高的多。
+
+#   
+
+# 资源需求与规划
+
+  
+
+Node名称
+
+IP地址
+
+CPU需求
+
+内存需求
+
+硬盘需求
+
+Bastion
+
+10.128.57.21
+
+4
+
+16
+
+100
+
+Bootstrap
+
+10.128.57.22
+
+4
+
+16
+
+100
+
+Master1
+
+10.128.57.23
+
+8
+
+32
+
+100
+
+Master2
+
+10.128.57.24
+
+8
+
+32
+
+100
+
+Master3
+
+10.128.57.25
+
+8
+
+32
+
+100
+
+Worker1
+
+10.128.57.26
+
+8
+
+32
+
+100
+
+Worker2
+
+10.128.57.27
+
+8
+
+32
+
+100
+
+Worker3
+
+10.128.57.28
+
+8
+
+32
+
+100
+
+我的poc环境还是要跑些负载的，所以没有采用单节点的方法安装，多节点安装还是很吃资源的，所以资源不够的场景下还是不要尝试多节点，用单节点的方法来装。
+
+#   
+
+# Bastion安装
+
+操作系统：centos7
+
+  
+
+## 系统初始化配置
+
+  
+
+主机名称
+
+hostnamectl set-hostname bastion.okd.bjlab.com
+
+  
+
+编辑dns
+
+vi /etc/resolv.conf
+
+nameserver 114.114.114.114
+
+nameserver 10.128.57.21
+
+  
+
+selinux设置
+
+sed -i 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/selinux/config
+
+setenforce 0
+
+  
+
+关闭防火墙
+
+systemctl disable firewalld
+
+systemctl stop firewalld
+
+  
+
+  
+
+## SSH免密登录（重要）
+
+创建密钥
+
+ssh-keygen -t rsa -b 4096 -N '' -f ~/.ssh/id_rsa
+
+启动ssh-agent后台进程服务
+
+eval "$(ssh-agent -s)"
+
+添加SSH私钥到ssh-agent
+
+ssh-add ~/.ssh/id_rsa
+
+##   
+
+## openshift-client安装
+
+登录github，找到需要下载的okd版本，https://github.com/openshift/okd/releases/，下文以4.7为例，4.x的安装方式没有太大的差别
+
+  
+
+yum install -y wget
+
+wget https://github.com/openshift/okd/releases/download/4.7.0-0.okd-2021-08-07-063045/openshift-client-linux-4.7.0-0.okd-2021-08-07-063045.tar.gz
+
+  
+
+tar -zxvf openshift-client-linux-4.7.0-0.okd-2021-08-07-063045.tar.gz
+
+  
+
+cp oc /usr/local/bin/
+
+cp kubectl /usr/local/bin/
+
+  
+
+# 检查版本，重要，这个号将做为拉取镜像的变量
+
+oc version
+
+  
+
+Client Version: 4.7.0-0.okd-2021-08-07-063045
+
+##   
+
+## Openshift-install安装
+
+wget https://github.com/openshift/okd/releases/download/4.7.0-0.okd-2021-08-07-063045/openshift-install-linux-4.7.0-0.okd-2021-08-07-063045.tar.gz
+
+  
+
+tar -zxvf openshift-install-linux-4.7.0-0.okd-2021-08-07-063045.tar.gz
+
+  
+
+cp openshift-install /usr/local/bin/
+
+yum install -y libvirt
+
+  
+
+# 检查版本
+
+openshift-install version
+
+  
+
+openshift-install 4.7.0-0.okd-2021-08-07-063045
+
+built from commit c4b7808d57a10c95250ba4ecd7f92dbceb0ce280
+
+release image quay.io/openshift/okd@sha256:78e4237a39e93e6f7b9cef579f135dc5d5dc11fc46ae53587351ac1d26261339
+
+  
+
+备注：oc和openshift-install的版本必须一致
+
+##   
+
+## coredns安装
+
+wget https://github.com/coredns/coredns/releases/download/v1.6.9/coredns_1.6.9_linux_amd64.tgz
+
+tar -zxvf coredns_1.6.9_linux_amd64.tgz
+
+mv coredns /usr/local/bin
+
+useradd coredns -s /sbin/nologin
+
+  
+
+### 配置coredns.server
+
+vi /etc/systemd/system/coredns.service
+
+#### 配置文件
+
+[Unit]
+
+Description=CoreDNS DNS server
+
+Documentation=https://coredns.io
+
+After=network.target
+
+[Service]
+
+PermissionsStartOnly=true
+
+LimitNOFILE=1048576
+
+LimitNPROC=512
+
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+NoNewPrivileges=true
+
+User=coredns
+
+WorkingDirectory=~
+
+ExecStart=/usr/local/bin/coredns -conf=/etc/coredns/Corefile
+
+ExecReload=/bin/kill -SIGUSR1
+
+Restart=on-failure
+
+[Install]
+
+WantedBy=multi-user.target
+
+###   
+
+### 配置Corefile
+
+mkdir -p /etc/coredns
+
+vi /etc/coredns/Corefile
+
+####   
+
+#### 配置文件
+
+.:53 {
+
+    template IN A apps.okd.bjlab.com {
+
+        match .*apps\.okd\.bjlab\.com
+
+        answer "{{ .Name }} 60 IN A 10.128.57.21"
+
+        fallthrough
+
+    }
+
+    etcd {
+
+        path /skydns                   
+
+        endpoint http://localhost:2379
+
+        fallthrough
+
+    }
+
+    prometheus 
+
+    cache 160
+
+    loadbalance
+
+    forward . 114.114.114.114
+
+    log
+
+}
+
+### 设置开机自起并验证
+
+systemctl enable coredns --now
+
+  
+
+# 验证
+
+yum install bind-utils -y
+
+  
+
+dig +short apps.okd.bjlab.com @127.0.0.1
+
+返回值应为配置地址10.128.57.21
+
+  
+
+## Etcd安装
+
+yum install -y etcd
+
+systemctl enable etcd --now
+
+systemctl status etcd
+
+###   
+
+### 查看域名解析
+
+cat /etc/resolv.conf
+
+# Generated by NetworkManager
+
+search okd.bjlab.com
+
+nameserver 10.128.57.21
+
+nameserver 114.114.114.114
+
+确认内部dns地址有效
+
+###   
+
+### etcd添加域名解析
+
+export ETCDCTL_API=3
+
+  
+
+# Bastion API Server HA
+
+etcdctl put /skydns/com/bjlab/okd/api '{"host":"10.128.57.21", "ttl":60}'
+
+etcdctl put /skydns/com/bjlab/okd/api-int '{"host":"10.128.57.21", "ttl":60}'
+
+  
+
+# Bastion Container Images Registry
+
+etcdctl put /skydns/com/bjlab/okd/registry '{"host":"10.128.57.21", "ttl":60}'
+
+  
+
+# Master ETCD
+
+etcdctl put /skydns/com/bjlab/okd/etcd-0 '{"host":"10.128.57.23", "ttl":60}'
+
+etcdctl put /skydns/com/bjlab/okd/etcd-1 '{"host":"10.128.57.24", "ttl":60}'
+
+etcdctl put /skydns/com/bjlab/okd/etcd-2 '{"host":"10.128.57.25", "ttl":60}'
+
+etcdctl put /skydns/com/bjlab/okd/_tcp/_etcd-server-ssl/x1 '{"host":"etcd-0.okd.bjlab.com", "ttl":60, "priority":0, "weight":10, "port":2380}'
+
+etcdctl put /skydns/com/bjlab/okd/_tcp/_etcd-server-ssl/x2 '{"host":"etcd-1.okd.bjlab.com", "ttl":60, "priority":0, "weight":10, "port":2380}'
+
+etcdctl put /skydns/com/bjlab/okd/_tcp/_etcd-server-ssl/x3 '{"host":"etcd-2.okd.bjlab.com", "ttl":60, "priority":0, "weight":10, "port":2380}'
+
+#hosts
+
+etcdctl put /skydns/com/bjlab/okd/bastion '{"host":"10.128.57.21", "ttl":60}'
+
+etcdctl put /skydns/com/bjlab/okd/bootstrap '{"host":"10.128.57.22", "ttl":60}'
+
+etcdctl put /skydns/com/bjlab/okd/master1 '{"host":"10.128.57.23", "ttl":60}'
+
+etcdctl put /skydns/com/bjlab/okd/master2 '{"host":"10.128.57.24", "ttl":60}'
+
+etcdctl put /skydns/com/bjlab/okd/master3 '{"host":"10.128.57.25", "ttl":60}'
+
+etcdctl put /skydns/com/bjlab/okd/worker1 '{"host":"10.128.57.26", "ttl":60}'
+
+etcdctl put /skydns/com/bjlab/okd/worker2 '{"host":"10.128.57.27", "ttl":60}'
+
+etcdctl put /skydns/com/bjlab/okd/worker3 '{"host":"10.128.57.28", "ttl":60}'
+
+  
+
+#反向域名解析，可以考虑不加，主要作用是集群在安装时，需要通过反向域名来修改hostname，如果是采用非EXP boot安装或者pods安装的方式，这些可以不加，主要是避免集群里面全是localhost的主机名
+
+etcdctl put /skydns/arpa/in-addr/10/128/57/22 '{"host":"bootstrap.okd.bjlab.com."}'
+
+etcdctl put /skydns/arpa/in-addr/10/128/57/23 '{"host":"master1.okd.bjlab.com."}'
+
+etcdctl put /skydns/arpa/in-addr/10/128/57/24 '{"host":"master2.okd.bjlab.com."}'
+
+etcdctl put /skydns/arpa/in-addr/10/128/57/25 '{"host":"master3.okd.bjlab.com."}'
+
+etcdctl put /skydns/arpa/in-addr/10/128/57/26 '{"host":"worker1.okd.bjlab.com."}'
+
+etcdctl put /skydns/arpa/in-addr/10/128/57/27 '{"host":"worker2.okd.bjlab.com."}'
+
+etcdctl put /skydns/arpa/in-addr/10/128/57/27 '{"host":"worker3.okd.bjlab.com."}'
+
+  
+
+  
+
+# etcd查看域名添加
+
+etcdctl get --prefix /skydns
+
+  
+
+### 域名验证
+
+dig +short @127.0.0.1 api.okd.bjlab.com
+
+dig +short @127.0.0.1 api-int.okd.bjlab.com
+
+dig +short @127.0.0.1 registry.okd.bjlab.com
+
+dig +short @127.0.0.1 bootstrap.okd.bjlab.com
+
+dig +short @127.0.0.1 master1.okd.bjlab.com
+
+dig +short @127.0.0.1 master2.okd.bjlab.com
+
+dig +short @127.0.0.1 master3.okd.bjlab.com
+
+dig +short @127.0.0.1 worker1.okd.bjlab.com
+
+dig +short @127.0.0.1 worker2.okd.bjlab.com
+
+  
+
+dig +short @127.0.0.1 -t SRV _etcd-server-ssl._tcp.okd.bjlab.com
+
+dig +short @127.0.0.1 etcd-0.okd.bjlab.com
+
+dig +short @127.0.0.1 etcd-1.okd.bjlab.com
+
+dig +short @127.0.0.1 etcd-2.okd.bjlab.com
+
+  
+
+#重要，反向域名验证，如果你不打算用我后面的手动指定的办法的话，这个很重要，一定要一个个检查仔细
+
+dig +noall +answer @127.0.0.1 -x 10.127.57.22
+
+dig +noall +answer @127.0.0.1 -x 10.127.57.23
+
+dig +noall +answer @127.0.0.1 -x 10.127.57.24
+
+dig +noall +answer @127.0.0.1 -x 10.127.57.25
+
+dig +noall +answer @127.0.0.1 -x 10.127.57.26
+
+dig +noall +answer @127.0.0.1 -x 10.127.57.27
+
+dig +noall +answer @127.0.0.1 -x 10.127.57.28
+
+dig +noall +answer @127.0.0.1 -x 10.127.57.29
+
+##   
+
+## 安装HaProxy
+
+yum install haproxy -y
+
+###   
+
+### 修改和增加配置内容
+
+vi /etc/haproxy/haproxy.cfg
+
+####   
+
+#### 修改部分
+
+修改frontend  main *:，因为后面registry需要用到5000端口，所以要把haproxy的端口改到5001避免registry端口冲突
+
+#---------------------------------------------------------------------
+
+# main frontend which proxys to the backends
+
+#---------------------------------------------------------------------
+
+frontend  main *:5001
+
+    acl url_static       path_beg       -i /static /images /javascript /stylesheets
+
+    acl url_static       path_end       -i .jpg .gif .png .css .js
+
+  
+
+    use_backend static          if url_static
+
+    default_backend             app
+
+  
+
+#### 增加部分
+
+#-----------------------------增加----------------------------------------------
+
+listen stats
+
+    bind :9000
+
+    mode http
+
+    stats enable
+
+    stats uri /
+
+    monitor-uri /healthz
+
+  
+
+frontend openshift-api-server                   
+
+    bind *:6443
+
+    default_backend openshift-api-server
+
+    mode tcp
+
+    option tcplog
+
+  
+
+backend openshift-api-server
+
+    balance source
+
+    mode tcp
+
+    server bootstrap 10.128.57.22:6443 check 
+
+server master1 10.128.57.23:6443 check
+
+server master2 10.128.57.24:6443 check
+
+server master3 10.128.57.25:6443 check    
+
+  
+
+frontend machine-config-server
+
+    bind *:22623
+
+    default_backend machine-config-server
+
+    mode tcp
+
+    option tcplog
+
+  
+
+backend machine-config-server
+
+    balance source
+
+    mode tcp
+
+    server bootstrap 10.128.57.22:22623 check
+
+server master1 10.128.57.23:22623 check
+
+server master2 10.128.57.24:22623 check
+
+server master3 10.128.57.25:22623 check
+
+  
+
+frontend ingress-http
+
+    bind *:80
+
+    default_backend ingress-http
+
+    mode tcp
+
+    option tcplog
+
+  
+
+backend ingress-http
+
+    balance source
+
+mode tcp
+
+    server master1 10.128.57.23:80 check
+
+    server master2 10.128.57.24:80 check
+
+    server master3 10.128.57.25:80 check
+
+    server worker1 10.128.57.26:80 check
+
+    server worker2 10.128.57.26:80 check
+
+    server worker3 10.128.57.28:80 check
+
+  
+
+frontend ingress-https
+
+    bind *:443
+
+    default_backend ingress-https
+
+    mode tcp
+
+    option tcplog
+
+  
+
+backend ingress-https
+
+    balance source
+
+    mode tcp
+
+    server master1 10.128.57.23:443 check
+
+    server master2 10.128.57.24:443 check
+
+    server master3 10.128.57.25:443 check
+
+    server worker1 10.128.57.26:443 check
+
+    server worker2 10.128.57.26:443 check
+
+    server worker3 10.128.57.28:443 check
+
+###   
+
+### 启动服务
+
+systemctl enable haproxy && systemctl restart haproxy
+
+##   
+
+## 安装http服务
+
+#如果采用外部http服务，可以忽略http的安装和配置
+
+yum -y install httpd-tools httpd
+
+  
+
+### 配置http服务
+
+vi /etc/httpd/conf/httpd.conf
+
+#编辑端口为12580
+
+  
+
+#启动http服务
+
+systemctl enable httpd && systemctl restart httpd
+
+  
+
+mkdir -p /var/www/html/os
+
+mkdir -p /var/www/html/ign
+
+#创建用于部署okd4.x的文件下载和存放目录。
+
+其中os存放 fedoracoreos的安装包，而ign则存放okd安装所需要的点火文件。
+
+  
+
+打开浏览器输入http://10.128.57.21:12580/os查看目录是否可以访问，确认http服务正常。
+
+##   
+
+## Registry安装
+
+echo "10.128.57.21 registry.okd.bjlab.com" >>/etc/hosts
+
+yum install -y podman
+
+###   
+
+### 自建CA准备
+
+#建立CA中心
+
+mkdir -p /opt/registry/{auth,certs,data}
+
+cd /opt/registry/certs
+
+  
+
+生成自签发证书
+
+openssl req -subj '/CN=registry.okd.bjlab.com/O=My Company Name LTD./C=US' -new -newkey rsa:2048 -days 365 -nodes -x509 -keyout domain.key -out domain.crt
+
+  
+
+复制证书到默认信任路径
+
+cp /opt/registry/certs/domain.crt /etc/pki/ca-trust/source/anchors/
+
+update-ca-trust extract
+
+###   
+
+### 生成仓库密钥
+
+htpasswd -bBc /opt/registry/auth/htpasswd adminadmin
+
+账户：admin 密码：admin
+
+  
+
+#生成base64位的加密口令
+
+echo -n 'admin:admin' | base64 -w0
+
+返回输出请记录，范例中返回值为YWRtaW46YWRtaW4=
+
+YWRtaW46YWRtaW4=
+
+  
+
+#编辑registry登录文件
+
+vi /root/pull-secret.json
+
+  
+
+#编辑内容
+
+{
+
+    "auths":{
+
+        "registry.okd.bjlab.com:5000":{
+
+            "auth":"YWRtaW46YWRtaW4=",
+
+            "email":""
+
+        }
+
+    }
+
+}
+
+###   
+
+### 下载okd镜像到本地registry仓库
+
+####   
+
+#### 设置变量
+
+  
+
+先查看版本号
+
+oc version
+
+  
+
+Client Version: 4.7.0-0.okd-2021-08-07-063045
+
+  
+
+前三个变量要注意检查
+
+OKD_RELEASE的变量参数与版本号相同
+
+LOCAL_REGISTRY的变量与etcd加载的registry域名相同，使用5000端口
+
+LOCAL_SECRET_JSON登录密钥的文件路径与保存路径相同
+
+  
+
+export OKD_RELEASE="4.7.0-0.okd-2021-08-07-063045"
+
+export LOCAL_REGISTRY='registry.okd.bjlab.com:5000'
+
+export LOCAL_SECRET_JSON='/root/pull-secret.json'
+
+export LOCAL_REPOSITORY='openshift/okd'
+
+export PRODUCT_REPO='openshift'
+
+export RELEASE_NAME="okd"
+
+  
+
+  
+
+#### 部署registry仓库
+
+podman run --name bjlab-registry -p 5000:5000 \
+
+     -v /opt/registry/data:/var/lib/registry:z \
+
+     -v /opt/registry/auth:/auth:z \
+
+     -e "REGISTRY_AUTH=htpasswd" \
+
+     -e "REGISTRY_AUTH_HTPASSWD_REALM=Registry Realm" \
+
+     -e REGISTRY_AUTH_HTPASSWD_PATH=/auth/htpasswd \
+
+     -v /opt/registry/certs:/certs:z \
+
+     -e REGISTRY_HTTP_TLS_CERTIFICATE=/certs/domain.crt \
+
+     -e REGISTRY_HTTP_TLS_KEY=/certs/domain.key \
+
+     -d docker.io/library/registry:2
+
+####   
+
+#### 拉取okd4.7镜像
+
+4.7不支持老的x509证书了，需要加个全局变量叫它支持，你可以选择手动临时添加
+
+  
+
+export GODEBUG=x509ignoreCN=0
+
+  
+
+也可以把它写到/etc/profile里使它每次重启都生效。
+
+  
+
+拉取镜像命令：
+
+oc adm -a ${LOCAL_SECRET_JSON} release mirror \
+
+     --from=quay.io/${PRODUCT_REPO}/${RELEASE_NAME}:${OKD_RELEASE} \
+
+     --to=${LOCAL_REGISTRY}/${LOCAL_REPOSITORY} \
+
+     --to-release-image=${LOCAL_REGISTRY}/${LOCAL_REPOSITORY}:${OKD_RELEASE}
+
+####   
+
+#### 拉取结束后测试
+
+curl -u admin:admin -k https://registry.okd.bjlab.com:5000/v2/_catalog
+
+返回值为：{"repositories":["openshift/okd"]}
+
+  
+
+#查看拉取的所有image tag
+
+curl -u admin:admin -k https://registry.okd.bjlab.com:5000/v2/openshift/okd/tags/list
+
+#   
+
+# OKD部署准备
+
+##   
+
+## ignition点火文件准备
+
+###   
+
+### 远程登陆rsa密钥获取
+
+cat /root/.ssh/id_rsa.pub
+
+#将输出保存至txt备用
+
+###   
+
+### 证书获取
+
+cat /opt/registry/certs/domain.crt
+
+#将输出保存至txt备用
+
+###   
+
+### Registry登录密钥格式
+
+pullSecret: '{"auths":{"registry.okd.bjlab.com:5000": {"auth": "YWRtaW46YWRtaW4=","email": ""}}}'
+
+#以上格式与密钥仓库配置文件“/root/pull-secret.json”相同
+
+  
+
+### 配置Ignition点火文件的yaml配置文件
+
+mkdir /root/okdinstall
+
+vi /root/okdinstall/install-config.yaml
+
+  
+
+### 配置内容范例
+
+apiVersion: v1
+
+baseDomain: bjlab.com
+
+compute:
+
+- hyperthreading: Enabled
+
+  name: worker
+
+  replicas: 0
+
+controlPlane:
+
+  hyperthreading: Enabled
+
+  name: master
+
+  replicas: 3
+
+metadata:
+
+  name: okd
+
+networking:
+
+  clusterNetwork:
+
+  - cidr: 192.168.0.0/14
+
+    hostPrefix: 23
+
+  networkType: OpenShiftSDN
+
+  serviceNetwork:
+
+  - 172.30.0.0/16
+
+platform:
+
+  none: {}
+
+fips: false
+
+pullSecret: '{"auths":{"registry.okd.bjlab.com:5000": {"auth": "YWRtaW46YWRtaW4=","email": ""}}}'
+
+sshKey: 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDcuGZ6bAIlBcVC4DO+gRlqVsuI+pA5jYyId3Ci0Q5bofw+4Evz0Uf1zPsIjzrWtVFUyqJ3ZHXcplQ+NDob8BmURnVItrYyHCyIYBGWEhaRU0+krY7t4+R+/m1Z6ZH1adIAJ3xe74NzBGYQL9N7EAGqZJ567RWIpuzw7JQuiP89g7LWk6vJD8T2+pXzqj/N1pJBL7KJHmVqu3WM0545KtgDqoD2wnZM6/W5Ndx61EKDv2MPMtDBFfo8bN+pyEcYL7hs6YCbM4hPqCDbRk9eNyqu6PwHsZj3dSe5f7eh4sfP333pSV5thGBFGN0y+IpIQtCOc9O23dPes/h5AgLZIMsgqx6QgTipyizP6Fbsq/1uhmJF1Atf46l2bmjc7jc7Zx4WVDMDb0ni7qSp93LyY4iIYIHP35oAlsqmUUJKY2cChvRuiSiGjXBl5S3O0u81GrCBZ6V5XeiuvGjXJg2rVcf20tz77TZvPHICPI2rN3SuegtcgeEH4EH03YIDOWLgZAi7VAGDslXLtW8a87rnjvk8wOFwvhjm3pO8Zpxle5swKFEFd6uJqcUcnT4QJAX6eF53bh+z+z+8h95aSVxi9tgroEm16djrOcN6lQd1hlI+5XyHhU+TbwTJ6McBd4aAFXGX5DgZLUYzxdARohwe7LiAq4huZCbhEisoMkX0FACYqQ== root@bastion.okd.bjlab.com'
+
+additionalTrustBundle: |
+
+  -----BEGIN CERTIFICATE-----
+
+  MIIDcTCCAlmgAwIBAgIJAPbpqGupR8NVMA0GCSqGSIb3DQEBCwUAME8xITAfBgNV
+
+  BAMMGHJlZ2lzdHJ5Lm9rZC5leGFtcGxlLddNvbTEdMBsGA1UECgwUTXkgQ29tcGFu
+
+  eSBOYW1lIExURC4xCzAJBgNVBAYTAlVTMB4XDTIxMDgwNTAxNDM0NVoXDTIyMDgw
+
+  NTAxNDM0NVowTzEhMB8GA1UEAwwYcmVnaXN0cnkub2tkLmV4YW1wbGUuY29tMR0w
+
+  GwYDVQQKDBRNeSBDb21wYW55IE5hbWUgTFRELjELMAkGA1UEBhMCVVMwggEiMA0G
+
+  CSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDMgA+d6rvxyDH19h1HjICC9gc65mbl
+
+  Nuv1FNJy51AjqeBDLOcnVynzG1fM3TMIJn4gqWUiSQ/Y5/fXzx4hrnoVw7+x2mqe
+
+  dpwp6XKVP8mERC4TNux8tfzC+1uG6IT5izGjZgK0uBhaS6nJ1J+n68tFltPTnQY/
+
+  wlF2yd6V0jq2L6uvagOtRHHfgZz1fOuVyNnB4NdItByy4y1zRniKKZc34HgHUn68
+
+  UaN34IyjMwOBc1n5vA/HDOAz6svyldKOo4z7ZDLr/IJDefkkUfU7DKJNsQaHZZfA
+
+  4KzEOe7hLKI4a3pcDc2TdZk6dWIPUTJKZ2YX7Y+y+LcgEDfWvjIb0DCFAgMBAAGj
+
+  UDBOMB0GA1UdDgQWBBRQP2NoR6ux8Z9TGOpddA44X1rQzDAfBgNVHSMEGDAWgBRQ
+
+  P2NoR6ux8Z9TGOpddA44X1rQzDAMBgNVHRMEBTADAQH/MA0GCSqGSIb3DQEBCwUA
+
+  A4IBAQBAYsnebDtlBDxdhP7horTdRNWemeK4kBoOSCwA/qdom5/ADHmIySCYDGev
+
+  oxBm1XgRccNsQ/1Ke9HKUnKns6qQavdDfpd4VFWDPQpaRMZoFqwTfodvKcu+VcuR
+
+  y6gkk/bsB4wfRnUPApbSXn4yuFTrp8pnyct+HTAhFenWBuSkJbWjm3updNi9Nrp6
+
+  sJcD69lHhecLZC+PxCEvjnUE9760+ST7dVEjvnto0jn2oE+nUoYvhLML/1vCt3jX
+
+  +0tj/laPBu5o/tIhZPH4038yoBSCDcXwH24Z4kv7O7XGEhJCYcHnYBGFLqMM3FID
+
+  KfaDlSCtxTiODTpSesmDZvSbU0PO
+
+  -----END CERTIFICATE-----
+
+imageContentSources:
+
+- mirrors:
+
+  - registry.okd.bjlab.com:5000/openshift/okd
+
+  source: quay.io/openshift/okd
+
+- mirrors:
+
+  - registry.okd.bjlab.com:5000/openshift/okd
+
+  source: quay.io/openshift/okd-content
+
+###   
+
+### 配置分段解释
+
+apiVersion: v1
+
+baseDomain: bjlab.com      ##集群所在域
+
+compute:                    ##集群worker在点火配置中配置的副本数量，改为0后期可以调整
+
+- hyperthreading: Enabled      
+
+  name: worker
+
+  replicas: 0
+
+controlPlane:                 ##集群master的数量，试过改为1部署单节点，4.5版本失败
+
+  hyperthreading: Enabled
+
+  name: master
+
+  replicas: 3
+
+metadata:                    ##集群名称
+
+  name: okd
+
+networking:                  ##网络配置
+
+  clusterNetwork:             ##pod的地址池池配置，
+
+  - cidr: 192.168.0.0/14        ##需要注意的是子网不要和host的网络还有app的网络地址重叠
+
+    hostPrefix: 23            ##能给每个host分配的pod子网大小
+
+  networkType: OpenShiftSDN  ##这个很重要，有两种网络类型，从okd4.6开始默认使用OVNKubernetes
+
+  serviceNetwork:            ##用OVNKubernetes部署时间会比openshiftSDN要慢，但是前景光明
+
+  - 172.30.0.0/16             ##app的地址池，这个池是分给每个节点的。
+
+platform:
+
+  none: {}
+
+fips: false
+
+pullSecret: 'text'     ##这里的text即上文中registry登录密钥格式中的内容
+
+sshKey: 'text'        ##这里的text即上文中远程登录rsa密钥获取中的内容
+
+  
+
+additionalTrustBundle: |
+
+  -----BEGIN CERTIFICATE-----
+
+  ##这里即上文中证书获取中的内容，需要注意的是，在编辑证书内容时，需要缩进两个空格
+
+  ##否则在生成点火文件时会出错
+
+  -----END CERTIFICATE-----
+
+imageContentSources:          ##指定我们自建的registry仓库地址
+
+- mirrors:
+
+  - registry.okd.bjlab.com:5000/openshift/okd
+
+  source: quay.io/openshift/okd
+
+- mirrors:
+
+  - registry.okd.bjlab.com:5000/openshift/okd
+
+  source: quay.io/openshift/okd-content
+
+###   
+
+### 关于配置文件的额外交代
+
+主要在于网络部分，kubeernetes的网络是分三层的：
+
+最外层叫Machine networker，是host的ip地址，也是你访问app的主要承载地址。
+
+第二层叫Cluster networker，是pod的ip地址，主要负责的是东西向的跨节点的集群内数据访问。
+
+最里层叫Service networker，是app的一个虚地址，你可以理解它封装在pod内，不会直接暴露，也不可以被直接访问，它通过端口映射的方式实现东西向或南北向的数据访问。
+
+  
+
+需要特别说明的是，Machine networker一般不需要在yaml里设置，另外这三个网络的子网一定不能有重叠！！！
+
+  
+
+另外openshift支持两种networktype，3.x时代一直到4.4之前默认都是openshiftSDN，4.5还是4.6之后就将默认的网络类型修改为OVNKubernetes了，所以这个东西是未来，因为生态会更好。当然是实际的部署中，OVNKubernetes也给我带来了不小的麻烦，因为它的安装要比openshiftSDN慢的多，导致我集群的master都不能顺利自动注册。
+
+##   
+
+## 生成ignition点火文件
+
+##备份编辑好的点火配置文件
+
+cp /root/okdinstall/install-config.yaml /root/ install-config.yaml
+
+  
+
+openshift-install create manifests --dir=/root/okdinstall
+
+  
+
+cp /root/install-config.yaml /root/okdinstall/install-config.yaml
+
+  
+
+openshift-install create ignition-configs --dir=/root/okdinstall
+
+cp /root/okdinstall/*.ign /var/www/html/ign/
+
+chmod 755 /var/www/html/ign/*
+
+##   
+
+## 配置bastion节点使用oc和kubectl命令
+
+mkdir -p /root/.kube
+
+cp /root/okdinstall/auth/kubeconfig ~/.kube/config
+
+  
+
+注意，每次在bastion更新新版本oc时，以及install新的ign点火文件后，都需要更新这个目录，确保kube的正常使用。
+
+#   
+
+# 安装okd
+
+安装okd有几种方式，我们选实现最简单的一种，基于coreos-live.iso引导的方法。
+
+需要注意的是，这种方法不是官方推荐的生产部署方法，因为大规模安装这个操作太累了，官方推荐基于pxe的自动化安装。但是如果要采用pxe的自动化安装方法，就需要大量的DNS反向解析条目和DHCP，来帮助集群自动识别和修改主机名，所以，小范围poc，尤其是在虚拟机里做的，适合这种方法，反之，还是老老实实的做pxe boot。
+
+##   
+
+## Coreos下载
+
+需要说明的是，在okd4.7之后的版本中，不在支持coreos32的版本，而需要coreos34的版本，如果低于4.7则可以选择coreos32。下面两个是我用过的，没踩过坑的fedora coreos，所以贴出来适配你需要的okd版本。
+
+  
+
+这里有三个文件， live的iso是用来做u盘引导的，raw.xz是正经的coreos安装包，另外的raw.xz.sig是校验文件，安装的时候必须和raw.xz放在同一个http目录底下，要不然装不上。
+
+###   
+
+### Coreos34下载地址
+
+cd /var/www/html/os
+
+  
+
+wget https://builds.coreos.fedoraproject.org/prod/streams/stable/builds/34.20210626.3.2/x86_64/fedora-coreos-34.20210626.3.2-live.x86_64.iso
+
+  
+
+wget https://builds.coreos.fedoraproject.org/prod/streams/stable/builds/34.20210626.3.2/x86_64/fedora-coreos-34.20210626.3.2-metal.x86_64.raw.xz
+
+  
+
+wget https://builds.coreos.fedoraproject.org/prod/streams/stable/builds/34.20210626.3.2/x86_64/fedora-coreos-34.20210626.3.2-metal.x86_64.raw.xz.sig
+
+  
+
+mv fedora-coreos-34.20210711.3.0-metal.x86_64.raw.xz coreos.raw.xz
+
+mv fedora-coreos-34.20210711.3.0-metal.x86_64.raw.xz.sig coreos.raw.xz.sig
+
+###   
+
+### Coreos32下载地址
+
+cd /var/www/html/os
+
+  
+
+wget https://builds.coreos.fedoraproject.org/prod/streams/stable/builds/32.20200715.3.0/x86_64/fedora-coreos-32.20200715.3.0-live.x86_64.iso
+
+  
+
+wget https://builds.coreos.fedoraproject.org/prod/streams/stable/builds/32.20200715.3.0/x86_64/fedora-coreos-32.20200715.3.0-metal.x86_64.raw.xz
+
+  
+
+wget https://builds.coreos.fedoraproject.org/prod/streams/stable/builds/32.20200715.3.0/x86_64/fedora-coreos-32.20200715.3.0-metal.x86_64.raw.xz.sig
+
+  
+
+mv fedora-coreos-32.20200715.3.0-metal.x86_64.raw.xz coreos.raw.xz
+
+mv fedora-coreos-32.20200715.3.0-metal.x86_64.raw.xz.sig coreos.raw.xz.sig
+
+###   
+
+### 配置下载镜像
+
+将fedora-coreos-34.20210711.3.0-live.x86_64.iso制作成启动U盘，或虚拟机中的DVD加载文件，进行系统的引导。
+
+![Image](https://mmbiz.qpic.cn/mmbiz_png/5ociac3MIRw1otO3dGxvaf95jYnA4tLb408ToF6dAgO8rvunfDgOJ0tqiaefC4jy4dtHk6BDsYrKxarNOeh8ibUjw/640?wx_fmt=png&wxfrom=5&wx_lazy=1&wx_co=1)
+
+虚机类型按上图选择
+
+![Image](https://mmbiz.qpic.cn/mmbiz_png/5ociac3MIRw1otO3dGxvaf95jYnA4tLb4f4L1eJA672928tvPfdh4EM37XRibyeRO1TZsgYjibDOefQQwpa55AthQ/640?wx_fmt=png&wxfrom=5&wx_lazy=1&wx_co=1)
+
+配置虚拟光驱挂载iso镜像。
+
+![Image](https://mmbiz.qpic.cn/mmbiz_png/5ociac3MIRw1otO3dGxvaf95jYnA4tLb4iasgOCVT5VWX3aR4buSxcmLLNmsM4vqlOZdBhNiaVzNOOCmTTv3KfjOg/640?wx_fmt=png&wxfrom=5&wx_lazy=1&wx_co=1)
+
+在引导界面按下 table键，需要在光标处键入引导安装键值。
+
+##   
+
+## Boostrap引导键值
+
+ip=ip地址：：网关地址：子网掩码：主机名：网卡名：none
+
+nameserver=dns地址
+
+coreos.inst.install_dev=sda
+
+coreos.inst.image_url=coreos.raw.xz的http访问地址
+
+coreos.inst.ignition_url=bootstrap.ign的http访问地址
+
+要连着写，别回车，回车就自动安装了，每个键值之间需要空格隔开。
+
+### 键值输入举例
+
+![Image](https://mmbiz.qpic.cn/mmbiz_png/5ociac3MIRw1otO3dGxvaf95jYnA4tLb4TeksQ3tnL69gf5Zq3hXeoVPCqZgsrxS9HCkZf4OYWfDTvVRQAzibkfg/640?wx_fmt=png&wxfrom=5&wx_lazy=1&wx_co=1)
+
+忽略图上的coreos版本和ip地址，这个是我之前装4.5的时候截屏的。
+
+##   
+
+## Master引导键值
+
+ip=ip地址：：网关地址：子网掩码：主机名：网卡名：none
+
+nameserver=dns地址
+
+coreos.inst.install_dev=sda
+
+coreos.inst.image_url=coreos.raw.xz的http访问地址
+
+coreos.inst.ignition_url=master.ign的http访问地址
+
+##   
+
+## worker引导键值
+
+ip=ip地址：：网关地址：子网掩码：主机名：网卡名：none
+
+nameserver=dns地址
+
+coreos.inst.install_dev=sda
+
+coreos.inst.image_url=coreos.raw.xz的http访问地址
+
+coreos.inst.ignition_url=worker.ign的http访问地址
+
+##   
+
+## 安装的步骤与顺序
+
+Openshift的整个安装顺序如开头的图表示的那样，基于点火文件，首先从Bastion点火bootstrap，待bootstrap节点状态正常之后，由bootstrap点火master，待master部署完成之后，撤销bootstrap，然后再部署worker，并通过master将worker注册进集群。
+
+##   
+
+## 安装各阶段的验证
+
+###   
+
+### Bootstrap安装阶段验证
+
+####   
+
+#### RSA密钥验证
+
+验证RSA密钥能否登录coreos，如果登录失败，说明install-config.yaml的配置文件有问题，需要重新制作点火文件。
+
+ssh -I ~/.ssh/id_rsa core@10.128.57.22
+
+####   
+
+#### 端口验证
+
+![Image](https://mmbiz.qpic.cn/mmbiz_png/5ociac3MIRw1otO3dGxvaf95jYnA4tLb4fBtJqrf31ItBVh2DklC6Xqkt6hpc44jUEqSwINHvj0UENpfpgZerRg/640?wx_fmt=png&wxfrom=5&wx_lazy=1&wx_co=1)
+
+通过浏览器登录bastion地址的9000端口，，查看bootstrap的端口是否开启，绿色状态说明端口打开，端口正常。
+
+也可以通过下列命令，在bootstrap节点上验证。
+
+sudo netstat -ef |grep 6443
+
+sudo netstat -ef |grep 22623
+
+####   
+
+#### pods验证
+
+sudo crictl pods
+
+![Image](https://mmbiz.qpic.cn/mmbiz_png/5ociac3MIRw1otO3dGxvaf95jYnA4tLb44mDshfxbAx64d6RrPa9PzmicX42wPjygnI4gHRJNUkPTxGIJNZkSvkg/640?wx_fmt=png&wxfrom=5&wx_lazy=1&wx_co=1)
+
+看到以上6个podready后，即证明bootstrap部署完毕。
+
+需要额外说明的是，某些okd版本可能存在bug，可能podready，但是6443端口却起不来，仍然会导致部署失败。
+
+###   
+
+### Master安装阶段验证
+
+在启动了master主机之后，会根据引导内容自动装载coreos系统，以及通过ign文件进行配置的自动加载，我们需要三个ssh窗体来跟踪安装过程。整个安装过程时间较长，大约需要持续30-60分钟，需要耐心等待。
+
+  
+
+#### 在bastion上
+
+输入以下命令，等待bootstrap完成引导。
+
+openshift-install --dir=/root/okdinstall wait-for bootstrap-complete --log-level=debug
+
+![Image](https://mmbiz.qpic.cn/mmbiz_png/5ociac3MIRw1otO3dGxvaf95jYnA4tLb4Io7VG4m0ibF5tFepAJVcI1Ut3fMmrv93BkJMov4IzKLicQdIG1TWE8RQ/640?wx_fmt=png&wxfrom=5&wx_lazy=1&wx_co=1)
+
+实际上，bootstrap是在引导完master完成etcd的安装之后，就退出工作了，余下的工作是由master自己通过etcd完成的，当然如果其它namspace安装的比较快的话，哪所有进程的安装都需要bootstrap的参与。
+
+####   
+
+#### 在bootstrap上
+
+输入以下命令，观察安装过程的日志输出。
+
+journalctl -b -f -u release-image.service -u bootkube.service
+
+  
+
+#### 在bastion上
+
+需要打开第三个窗体，用来远程登录masters主机，进行主机的验证。
+
+#登录验证
+
+ssh -I ~/.ssh/id_rsa core@10.128.57.23
+
+  
+
+#登录到master，查看pod情况
+
+sudo crictl pods
+
+在bastion上,查看namspace的情况
+
+watch -n5 oc get clusteroperators
+
+当看到所有namspace第一列AVAILABLE都为True时，说明master部署结束。
+
+![Image](https://mmbiz.qpic.cn/mmbiz_png/5ociac3MIRw1otO3dGxvaf95jYnA4tLb4eG5oGTaseJpbZ4mDmWwuPP8micKZwbnxEzNKBYwus8r6zTyqYcdnKEg/640?wx_fmt=png&wxfrom=5&wx_lazy=1&wx_co=1)
+
+  
+
+openshift-install --dir=/root/okdinstall/ wait-for bootstrap-complete --log-level debug
+
+####   
+
+#### Master部署过程中的排坑
+
+前面谈到了，我在这次部署过程中，采用了OVNKubernetes的网络，比之以往采用OpenshiftSDN的部署时间长了很多，所以导致多个master安装进程脱节，不能完成自动的集群注册，bootstrap始终不能返回部署完成的提示（因为etcd的进程因为master不能注册的缘故，一直处于不正常的状态），通过一个接一个的去看pod的describe，终于发现是认证问题，然后我才意识到去看一下scr的状态。这才找到了问题的根源。
+
+#####   
+
+##### 几个常用的排错命令
+
+oc describe pod/pod名 -n namespaces名
+
+这个是用来查你的pod有没有啥报错信息的，基本上80%的报错信息你在github上都能找到解决方案。
+
+  
+
+oc logs pod名 -n namespaces名
+
+如果你在github上通过describe的输出都找不到问题的解决方案，哪就翻日志吧，基本上拿着日志在github上都能找到答案了。
+
+  
+
+oc get node
+
+查看节点状态，的NotReady就说明有东西没装完。
+
+  
+
+oc get pods –all-namespaces
+
+如果你记不清namespaces的名字叫啥的话，可以用这个命令加管道符 |grep 去找你要的pod和namespace。
+
+  
+
+journalctl -b -f -u release-image.service -u bootkube.service
+
+这个是在coreos上用的，如果问题比较棘手，哪只能看系统里存的日志都讲了啥，有用，但是很少用，除非你oc的命令都执行无效的前提下，只能靠这个修。
+
+  
+
+另外在安装过程中排错，我非常推荐看OKD的guide，虽然没告诉你怎么修，但是给你提供了不错的排错思路：
+
+https://docs.okd.io/latest/installing/installing-troubleshooting.html
+
+##   
+
+## Worker安装阶段的验证
+
+### 和master、haproxy相关的事情（重要）
+
+这里要回过头讲讲haproxy的事情，在前文中，利用haproxy做负载均衡时，我的配置中对于80和443端口的映射是添加了master和worker的，这是因为在默认的安装文件中，系统会给3个masternode同时分配master和worker的角色，这个也是github上的一个在安装过程中高触发的坑，原因在于，在自动部署时，系统会在worker节点上启动console，如果你的点火配置中没有修改角色，也就是没有在点火配置中声明，master node指有master角色时，那么这个namespace就会在master中启动。
+
+而haproxy中又没有将masternode的80和443端口进行映射，就会导致console没有路由，始终不能启动。
+
+而我在做OKD4.5的时候，因为没经验，就被这个破玩意卡了整整一天。
+
+frontend ingress-http
+
+    bind *:80
+
+    default_backend ingress-http
+
+    mode tcp
+
+    option tcplog
+
+  
+
+backend ingress-http
+
+    balance source
+
+mode tcp
+
+    server master1 10.128.57.23:80 check
+
+    server master2 10.128.57.24:80 check
+
+    server master3 10.128.57.25:80 check
+
+    server worker1 10.128.57.26:80 check
+
+    server worker2 10.128.57.26:80 check
+
+    server worker3 10.128.57.28:80 check
+
+  
+
+frontend ingress-https
+
+    bind *:443
+
+    default_backend ingress-https
+
+    mode tcp
+
+    option tcplog
+
+  
+
+backend ingress-https
+
+    balance source
+
+    mode tcp
+
+    server master1 10.128.57.23:443 check
+
+    server master2 10.128.57.24:443 check
+
+    server master3 10.128.57.25:443 check
+
+    server worker1 10.128.57.26:443 check
+
+    server worker2 10.128.57.26:443 check
+
+    server worker3 10.128.57.28:443 check
+
+即这部分标红的内容。
+
+解决的方案有两种，第一种就是我采用的方法，第二种方法是在制作点火文件时，就去更改生成的yaml配置。
+
+在执行下面的命令操作时，会生成部署配置所需要yaml文件
+
+openshift-install create manifests --dir=/root/okdinstall
+
+  
+
+vi /root/okdinstall/manifests/cluster-scheduler-02-config.yml
+
+编辑这个文件，修改mastersSchedulable参数为false，不允许部署时master节点还承担worker的角色。这条参数的默认值为true。
+
+这样，在master部署时，就不会去部署console以及与一些需要部署在worker上的namespacespods。
+
+同时，你的haproxy的loadbalance设置中，对80和443端口的映射，就只放worker的ip就可以了。
+
+###   
+
+### 在bastion上检查和验证
+
+Worker的安装和验证没有太大的难度，如果集群的状态已经正常，你只需要刷一刷 oc get node和oc get csr就可以了。等待csr的请求发送上来，利用oc adm certificate approve命令做批准就可以了。
+
+  
+
+oc adm certificate approve XXXX
+
+  
+
+# console的登录
+
+如果是poc环境，首先修改你登录console的hosts文件，添加以下几条映射关系
+
+10.128.57.21 console-openshift-console.apps.okd.bjlab.com
+
+10.128.57.21 oauth-openshift.apps.okd.bjlab.com
+
+10.128.57.21 superset-openshift-operators.apps.okd.bjlab.com
+
+然后打开浏览器
+
+输入https://console-openshift-console.apps.okd.bjlab.com
+
+![Image](https://mmbiz.qpic.cn/mmbiz_png/5ociac3MIRw1otO3dGxvaf95jYnA4tLb4QbyLOb0Wg97U6lAXXGVocjLaGTVAHvnPWFq6NKWicX00ibrKrpB04e8A/640?wx_fmt=png&wxfrom=5&wx_lazy=1&wx_co=1)
+
+然后再bastion上输入以下命令获得账户和密码
+
+openshift-install wait-for install-complete --log-level=debug  --dir=/root/okdinstall
+
+![Image](https://mmbiz.qpic.cn/mmbiz_png/5ociac3MIRw1otO3dGxvaf95jYnA4tLb4gQXe435C3sCflo8qsbQHgpRqriaJYzsLiaeLHhh09YMEY1FIhMA4tibBQ/640?wx_fmt=png&wxfrom=5&wx_lazy=1&wx_co=1)
+
+利用这个密码登录你的okdconsole。
