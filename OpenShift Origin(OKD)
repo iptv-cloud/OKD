@@ -1,0 +1,260 @@
+# Kubernetes社区发行版:开源容器云OpenShift Origin(OKD)认知
+
+
+
+## 写在前面
+
+-   分享一些OpenShift的知识，参加考试，另希望通过学习，对相关类型的解决方案功能有个大概了解。
+-   博文内容涉及
+-   关于openshift简介，和k8s的关系
+-   openshift架构简介
+-   一个单机版的openshift环境搭建
+-   以image方式部署应用的简单Demo
+-   食用方式：
+-   需要一点k8s,docker,devops相关的知识
+-   读完本文，可以对openshift有基本认知
+-   理解不足小伙伴帮忙指正
+
+**「 不乱于心，不困于情。不畏将来，不念过往。如此，安好。」**
+
+
+## 开源容器云OKD
+
+关于OpenShift是什么，你可以用你喜欢的名字叫它。`容器云`，`Kubernetes的社区发行版`,`基于Docker,K8s的PaaS平台`，`DevOps平台`等等
+
+虽然是一个企业级的产品，但是类似的云原生解决方案，国内外的一些大厂，或者一些大一点的外包公司都有自己的产品，一般分开源和闭源两种，大都基于开源的容器编排引擎Kubernetes来实现。另，国内好像对这个不太感冒，毕竟可以结合自研，而且整个devops流水线，项目管理，版本控制，审计，CICD等都有开源相对成熟的解决方案借鉴或者直接使用，况且openshift企业版还要订阅，所以相关的资料不是特别多。
+
+关于OpenShift，他首先是一个开源项目，这一点很重要，我们可以基于`OpenShift`构建属于自己的容器云平台。OpenShift的开源社区版本叫`OpenShift Origin`，现在叫`OKD`
+
+`在OpenShift 的GitHub仓库，这样介绍`：OKD是Kubernetes的社区发行版，针对持续应用程序开发和多租户部署进行了优化。OKD 在 Kubernetes 之上添加了以开发人员和运营为中心的工具，以支持小型和大型团队的快速应用程序开发、轻松部署和扩展以及长期生命周期维护。OKD在 github 和文档中 也称为Origin 。OKD使在任何云或裸机上启动 Kubernetes 变得轻而易举，简化了集群的运行和更新，并提供了使您的容器化应用程序成功的所有工具。
+
+那么他和红帽有什么关系？
+
+`Red Hat在OpenShift Origin`的基础上推出了`OpenShift的企业版本`，其中包含了公有云服务`OpenShift Online`及私有云产品`OpenShift Container Platform`（以前也称为OpenShift Enterprise）
+
+-   OpenShift 项目主页：https://www.okd.io/。
+ 
+-   OpenShift GitHub仓库：https://github.com/openshift。
+
+`OpenShift`基于主流的容器技术`Docker`及容器编排引擎`Kubernetes`构建。
+
+通过OpenShit，企业可以快速在内部网络中构建出一个多租户的云平台，在这朵云上提供应用开发、测试、部署、运维的各项服务，OpenShit在一个平台上贯通开发、测试、部署、运维的devops流程，实现高度的自动化，满足应用持续集成及持续交付和部署的需求；满足企业及组织对容器管理、容器编排的需求。通过OpenShift的灵活架构，企业可以以Openshift作为核心，在其上搭建一个企业的DevOps引擎，推动企业的DevOps变革和转型。
+
+### Docker、Kubernetes与OpenShift的关系
+
+那么`Open Shift与Docker及Kubernetes的关系究竟是什么？`
+
+OpenShift是基于容器技术构建的一个应用云平台。这里所指的容器技术即包含`Docker及Kubernetes`，
+
+-   OpenShift底层以Docker作为容器引擎驱动，以Kubernetes作为容器编排引擎组件。
+-   OpenShift提供了开发语言、中间件、自动化流程工具及界面等元素，提供了一套完整的基于容器的应用云平台。
+-   某种意义上来讲，希望用openshift来管理k8s，来弱化k8s复杂安装、资源配置和权限管理，通过k8s来管理docker,解决跨主机通信，容器编排，永久存储等问题。
+
+一般我们指K8s，即单单指k8s这种基础设施，k8s本质上只提供一种CD的环境，即用于持续部署，所以对于传统的devops平台或者cicd平台，他缺少版本控制，持续集成CI，以及对于整个devops流程的整合等。
+
+openshift他提供了这样一种整合，这种整合并不是简单的我们下面看到的这样，搭建一个CICD的流水线这样，openshift提供部分k8s所没有的资源对象用于描述运维场景，比如用于部署行为配置文件的DC，用于服务发布的路由控制的router资源对象，自服务，以及一些不同于k8s的安全控制，同时支持一些内置SDK基础镜像组，模板的使用，作为一个paas平台，我们可用通过openshift快速搭建一个中间件或者数据库集群。提供了这个devops的流水线配置，统一的Web UI等等
+
+#### 容器引擎docker
+
+Docker的优势在于它可以构建一个隔离的、稳定的、安全的、高性能的容器运行环境。目前，OpenShift使用原生的Docker作为平台的容器引擎，为上层组件及用户应用提供可靠安全的运行环境具有十分重要的价值：
+
+Docker有非常大的用户基础。以Docker为基础引擎，降低了用户学习的成本。熟悉Docker的用户可以非常容易地上手。
+
+-   Docker Hub上有海量的镜像资源。我们日常使用的绝大部分软件，都可以在Docker-Hub上找到官方的或社区贡献的镜像。所有的这些镜像都可以无缝地运行在OpenShift平台上。
+-   这里值得关注的一点是OpenShift使用的Docker是原生的Docker，没有任何闭源的修改。
+ 
+
+docker并没有实现CRI，所以在k8s 1.23的版本中彻底的移除了dockershim 组件，默认使用containerd，所以对于使用高版本k8s需要切换容器引擎
+
+#### 容器编排k8s
+
+为了满足容器集群所需的调度、网络、储存、性能及安全的需求，我们必须有专业的工具和平台。这些关于容器集群管理的问题，其实就是容器编排的问题，即Kubernetes要解决的问题。
+
+Kubernetes是Google十多年容器使用经验的总结，虽然Google使用的容器是Docker时代之前的容器，但是业务应用对安全、性能、隔离、网络、储存及调度方面的需求，在最原始的本质上其实并没有发生变化。
+
+OpenShift集成原生的Kubernetes作为容器编排组件。OpenShift 通过Kubernetes管理容器集群中的机器节点及容器，为业务应用提供：
+
+-   容器调度；按业务的要求快速部署容器至指定的目标。
+-   弹性伸缩：按业务的需要快速扩展或收缩容器的运行实例数量。
+-   异常自愈：当容器实例发生异常，集群能自动感知、处理并恢复服务状态。
+-   持久化卷：为散布在集群不同机器上的容器提供持久化卷的智能对接。
+-   服务发现：为业务微服务化提供服务发现及负载均衡等功能。
+-   配置管理：为业务应用提供灵活的配置管理及分发规则。
+
+#### 容器云OpenShift
+
+**「OpenShift 在 Docker+Kubernetes 基础结构添加以下功能:」**
+
+-   `OpenShift-Kubernetes extensions`：存储在 Etcd 中，由 Kubernetes 管理的`额外资源类型`。这些额外的资源类型构成 OpenShift 内部状态和配置，以及由标准 Kubernetes 资源管理的应用资源。比如k8s中没有的`router`,DC等资源类型
+-   `Containerized services`：履行许多基础设施功能，如网络和授权。他们中的部分功能需要一直运行，而另一些则是按需启动的。大多数 OpenShift 内部服务以容器方式运行，由 Kubernetes 管理。
+-   `Runtimes and xPaas`:是为开发人员准备的`基本容器镜像`,每个都预先配置了特定的`runtimes语言或数据库`。它们可以用作`as-is`或扩展添加不同的框架、库甚至其他中间件产品。xPaas为jboss中间件产品(如 jboss EAP和ActiveMQ)提供了一系列基本镜像。
+-   `DevOps tools and user experience`: OpenShift 为开发人员和系统管理员提供了Web UI 和CLI管理工具,允许对应用、OpenShift服务和资源进行配置和监视。Web和CLI使用相同的REST APIs,外部工具(例如IDEs和CI平台)也可以通过REST APIs集成 OpenShift。 OpenShift还可以访问外部SCM存储库和容器镜像注册表,并将其整合到OpenShift云中。
+ 
+#### 其他的架构组件
+
+`Etcd`：是一个分布式键-值存储，Kubernetes 使用它存储 OpenShift 群集中容器和其他资源的配置和状态信息
+
+## Openshift 架构
+
+![Image](https://mmbiz.qpic.cn/mmbiz_png/BFyULpfKEVrAC3arsJ5upibAdanib9elqOXVMv99ian7jyqx8KJPk4TCWa3oMG5Ify93ufwnyaFKdbCQRzDelfm1A/640?wx_fmt=png&wxfrom=5&wx_lazy=1&wx_co=1)
+
+`openshift特有的资源对象`
+
+### OpenShift projects and Applications
+
+OpenShift管理`projects和users`。 OpenShift使用`project分组Kubernetes资源`(可以直接理解为k8s中命名空间的角色),以便将访问权限分配给用户。针对project也可以分配配额,限制pods、卷、服务和其他资源的数量。OpenShift 客户端提供`new-app`命令,用于在项目内创建资源。
+
+### Building Images with Source-to-Image
+
+开发人员和系统管理员可以直接使用OpenShift中传统Docker和Kubernetes,但是这要求他们知道如何构建容器镜像文件、使用registries和其他低级功能。
+
+OpenShift 允许开发人员使用标准源代码管理`(source control management--SCM)`存储库和集成开发环境`(integrated development environments--IDE)`。
+
+OpenShift 中 `Source-to-Image (S2I)`从 SCM仓库获取代码,自动检测源代码需要哪种类型`runtime`(可以理解为语言环境SDK),并且使用具有特定类型runtime的基本image启动pod。
+
+在这个POD中, OpenShift以与开发人员相同的方式构建应用(例如,运行Java应用的Maven)。如果生成成功,则会创建另外一个image,在其运行时将应用二进制文件分层,并将此image推送到OpenShift内的image注册表。之后,可以使用新的image构建POD。 `S21可以看作是OpenShift中自带的完整CI/CD管道。`启动装配线的过程称为“持续集成”（CI）。如何完成这项工作的总体设计称为“持续交付”（CD）。
+
+### Managing OpenShift Resources
+
+OpenShift 资源,例如 `images, containers, pods, services, builders, templates`等等,存储在`Etcd`,可通过`OpenShift CLI, web console`,或者 `REST API` 管理。这些资源可以在SCM系统(例如Git或者Subversion)上以JSON或者YAML格式查看和分享。
+
+### OpenShift Networking
+
+Docker的网络非常简单。Docker创建`虚拟内核网桥`,连接每个容器网络接口。Docker本身不提供host 上 pod连接另外一个host 上 pod(跨主机网络通信),而且不提供分配固定公网IP地址给应用,以便外部用户可以访问。
+
+Kubernetes提供服务和路由资源来管理pods之间网络和pod与外部通信网络。`oad-balances`服务接收pods之间网络请求,同时为所有客户端提供单个内部地址。(通常是其他pods)。容器和pods不需要知道其他pods在哪里,他们只需要连接到服务。路由为服务提供固定唯一的DNS名称,以便OpenShift集群之外的客户端可以看到。
+
+### Persistent StoragePods
+
+可以在任何时候在某个node上停止,然后在其他node上重启。因此临时存储是无法满足这个要求的。Kubernetes提供了一种用于管理容器的外部持久存储的框架。Kubernetes使用PersitentVolume资源,可以定义本地或网络存储。pod资源可以引用PersitentVolumeClaim 资源访问特定大小 PersitentVolume存储。
+
+### OpenShift High Availability
+
+OpenShift 容器平台集群的HA包括两个方面:
+
+-   OpenShift基础架构本身高可用(多masters)
+-   OpenShift集群中应用高可用
+ 
+OpenShift 本身就完全支持 master 得HA。对于应用(pods), OpenShift模式也会支持。如果pod因为某个原因丢失, Kubernetes 调度另外一个副本,将它连接到服务层和永久存储。如果整个node丢失, Kubernetes将node上所有pods调度到其他nodes,这些pods继续对外提供服务。但是pods中应用要维护自己的状态,例如http会话, database复制等。
+
+### Image Streams
+
+在OpenShift中创建一个新的应用,除了`应用源代码`之外,还需要`base image,(S21构建的image)`。这两个组件中任一个更新,都会创建一个新的容器image。使用之前容器image创建的pod,都会被重新使用新的image创建的pod替换。所以openshift创建应用可以通过 S2I创建，也可以直接使用image创建，或者使用模板，pipeline的方式
+
+`Image Stream包含了通过 tags标识的images`。它代表相关`image的单一虚拟视图`。应用可以通过Image Stream构建的。当创建新images时, Image Stream可用于自动执行动作。例如添加了新的image,构建和部署会接受到消息,然后针对新的image进行构建和部署pod。
+
+OpenShift默认提供多个Image Stream,包括许多流行的语言runtime和框架。Image Stream tag是指向image的别名,简写为istag,包含tag曾经指向的image记录。当新的image使用了新的istag标记,那么该标记会放到记录中第一个位置。之前标记的第一位置变更为第二,可以轻松实现回滚,使标签再次指向旧的image
+
+## 牛刀小试 OpenShift 容器云
+
+### 安装OpenShift
+
+OpenShift支持运行在基础架构之上，同时支持多种安装方式。
+
+-   手工安装。用户下载OpenShift的二进制包，手动进行配置和启动。
+-   快速安装。通过OpenShift提供的交互式Installer进行安装。
+-   高级安装。在多节点集群的环境中，OpenShift可通过Ansible对多台集群主机进行自动化安装和配置。
+-   Docker镜像。通过运行OpenShift的Docker镜像启动一个All-in-One的OpenShift容器实例。这适合开发测试人员快速部署和验证。
+
+### 安装Docker，配置Docker加速
+
+`┌──[root@vms16.liruilongs.github.io]-[~]   └─$yum -y install docker-ce   ┌──[root@vms16.liruilongs.github.io]-[~]   └─$systemctl enable  docker.service  --now   Created symlink from /etc/systemd/system/multi-user.target.wants/docker.service to /usr/lib/systemd/system/docker.service.   `
+
+配置Docker加速
+
+`sudo mkdir -p /etc/docker   sudo tee /etc/docker/daemon.json <<-'EOF'   {     "registry-mirrors": ["https://2tefyfv7.mirror.aliyuncs.com"]   }   EOF   sudo systemctl daemon-reload   sudo systemctl restart docker   `
+
+配置docker镜像仓库，需要注意的是这里的registry是给openshift用的
+
+`┌──[root@vms16.liruilongs.github.io]-[~]   └─$cat   /etc/docker/daemon.json   {     "registry-mirrors": ["https://2tefyfv7.mirror.aliyuncs.com"],      "insecure-registries": [        "172.30.0.0/16"      ]   }   `
+
+配置防火墙
+
+`┌──[root@vms16.liruilongs.github.io]-[~]   └─$firewall-cmd --permanent --new-zone dockerc   ┌──[root@vms16.liruilongs.github.io]-[~]   └─$firewall-cmd --permanent --zone dockerc --add-source 172.17.0.0/16   success   ┌──[root@vms16.liruilongs.github.io]-[~]   └─$firewall-cmd --permanent --zone dockerc --add-port 8443/tcp   success   ┌──[root@vms16.liruilongs.github.io]-[~]   └─$firewall-cmd --permanent --zone dockerc --add-port 53/udp   success   ┌──[root@vms16.liruilongs.github.io]-[~]   └─$firewall-cmd --permanent --zone dockerc --add-port 8053/udp   success   ┌──[root@vms16.liruilongs.github.io]-[~]   └─$firewall-cmd --reload   success   `
+
+配置Selinux，这里我们默认是关闭的，所以不需要配置
+
+`┌──[root@vms16.liruilongs.github.io]-[~]   └─$setenforce 0   setenforce: SELinux is disabled   ┌──[root@vms16.liruilongs.github.io]-[~]   └─$getsebool   getsebool:  SELinux is disabled   ┌──[root@vms16.liruilongs.github.io]-[~]   └─$   `
+
+### 下载OpenShift Origin 安装包
+
+`┌──[root@vms16.liruilongs.github.io]-[~]   └─$wget http://dl.dawnlab.cn/skrman/openshift-origin-server-v3.11.0-0cbc58b-linux-64bit.tar.gz   --2022-05-28 15:53:17--  http://dl.dawnlab.cn/skrman/openshift-origin-server-v3.11.0-0cbc58b-linux-64bit.tar.gz   正在解析主机 dl.dawnlab.cn (dl.dawnlab.cn)... 81.69.59.74   正在连接 dl.dawnlab.cn (dl.dawnlab.cn)|81.69.59.74|:80... 已连接。   已发出 HTTP 请求，正在等待回应... 200 OK   长度：228058872 (217M) [application/gzip]   正在保存至: “openshift-origin-server-v3.11.0-0cbc58b-linux-64bit.tar.gz”   100%[==========================================================================>] 228,058,872 1005KB/s 用时 5m 24s   2022-05-28 15:58:42 (687 KB/s) - 已保存 “openshift-origin-server-v3.11.0-0cbc58b-linux-64bit.tar.gz” [228058872/228058872])   ┌──[root@vms16.liruilongs.github.io]-[~]   └─$ls   anaconda-ks.cfg  calico.yaml            openshift-origin-server-v3.11.0-0cbc58b-linux-64bit.tar.gz   calico_3_14.tar  one-client-install.sh  set.sh   ┌──[root@vms16.liruilongs.github.io]-[~]   └─$tar -xzf openshift-origin-server-v3.11.0-0cbc58b-linux-64bit.tar.gz   `
+
+安装git。涉及CICD，所以需要git
+
+`┌──[root@vms16.liruilongs.github.io]-[~]   └─$yum -y install git   `
+
+### 安装及启动OpenShift Origin
+
+`┌──[root@vms16.liruilongs.github.io]-[~]   └─$mv openshift-origin-server-v3.11.0-0cbc58b-linux-64bit/o   oadm                   oc                     openshift              openshift-node-config   ┌──[root@vms16.liruilongs.github.io]-[~]   └─$mv openshift-origin-server-v3.11.0-0cbc58b-linux-64bit/oc  /usr/local/bin/   ┌──[root@vms16.liruilongs.github.io]-[~]   └─$chmod  755 /usr/local/bin/oc   ┌──[root@vms16.liruilongs.github.io]-[~]   └─$echo $PATH   /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/root/bin   ┌──[root@vms16.liruilongs.github.io]-[~]   └─$which oc   /usr/local/bin/oc   ┌──[root@vms16.liruilongs.github.io]-[~]   └─$oc version   oc v3.11.0+0cbc58b   kubernetes v1.11.0+d4cacc0   features: Basic-Auth GSSAPI Kerberos SPNEGO   ┌──[root@vms16.liruilongs.github.io]-[~]   └─$   `
+
+`oc cluster up` 方式启动项目
+
+`┌──[root@vms16.liruilongs.github.io]-[~]   └─$oc cluster up --skip-registry-check=true --public-hostname=192.168.26.16 --no-proxy=172.17.0.0/16,127.0.0.1   .....   Login to server ...   Creating initial project "myproject" ...   Server Information ...   OpenShift server started.   The server is accessible via web console at:       https://192.168.26.16:8443:8443   You are logged in as:       User:     developer       Password: <any value>   To login as administrator:       oc login -u system:admin   `
+
+如果是在虚机部署。希望在本地物理机访问，需要在windows配置域名映射，修改host文件
+
+`hostnamectl set-hostname  vms$16.liruilongs.github.io   `
+`192.168.26.16 vms16.liruilongs.github.io   `
+
+### 安装失败的处理
+
+我是在虚机部署的，在物理机访问，一直受域名解析影响，后来找windows上的host文件配置了ip到域名的映射可以了。如果访问不成功。可以按照下面的方式重新试试
+
+`┌──[root@vms16.liruilongs.github.io]-[~]   └─$oc cluster down   ┌──[root@vms16.liruilongs.github.io]-[~]   └─$docker images | grep -v IMAGE  | awk '{ print $3}' | xargs docker rmi   `
+
+`┌──[root@vms16.liruilongs.github.io]-[~]   └─$oc cluster up --skip-registry-check=true --public-hostname=192.168.26.16 --no-proxy=172.17.0.0/16,127.0.0.1   `
+
+`┌──[root@vms16.liruilongs.github.io]-[~]   └─$cat /etc/hosts   127.0.0.1   localhost localhost.localdomain localhost4 localhost4.localdomain4   ::1         localhost localhost.localdomain localhost6 localhost6.localdomain6   192.168.26.16 vms16.liruilongs.github.io vms16   ┌──[root@vms16.liruilongs.github.io]-[~]   └─$   `
+
+### 登录OpenShift Origin 控制台
+
+![Image](https://mmbiz.qpic.cn/mmbiz_png/BFyULpfKEVrAC3arsJ5upibAdanib9elqOHxkO1V8LibC4ZXARibEvMRn28rNCzzib4W3kpPeYcGxEKwsnlE1UXLVlQ/640?wx_fmt=png&wxfrom=5&wx_lazy=1&wx_co=1)
+
+这里如果无法登录，需要配置ip到域名的映射
+
+![Image](https://mmbiz.qpic.cn/mmbiz_png/BFyULpfKEVrAC3arsJ5upibAdanib9elqO5SMibfL1fvnpwyZq5hAl0nXPOShAzey71nvlWFpRjJteDwDUibMKyuCg/640?wx_fmt=png&wxfrom=5&wx_lazy=1&wx_co=1)
+
+## 运行第一个容器应用
+
+### 创建项目
+
+在部署应用前，需要创建一个Project对象,即项目。`项目是OpenShift中的一种资源组织方式`。类似于k8s中的命名空间，可以做到资源对象隔离，当然部分特殊的除外，比如PV等，
+
+-   对一般用户而言，不同类型的相关资源可以被归属到某一个项目中进行统一管理。
+-   对管理员来说，项目是配额管理和网络隔离的基本单位。
+
+![Image](https://mmbiz.qpic.cn/mmbiz_png/BFyULpfKEVrAC3arsJ5upibAdanib9elqOlKqBJicn3GoRuZLZDa1Yjdl2dKyseuibw6hOlHywkjYwVrFeuhpOiczmA/640?wx_fmt=png&wxfrom=5&wx_lazy=1&wx_co=1)
+
+### 部署Docker 镜像
+
+OpenShift是以原生的Docker作为平台的容器引擎，因此只要是有效的Docker镜像，均可以运行于OpenShift容器云平台之上。
+
+![Image](https://mmbiz.qpic.cn/mmbiz_png/BFyULpfKEVrAC3arsJ5upibAdanib9elqOPw9X0L3HoEdnic9icLqkiboMu5G2JyFc2almVmscF5oqnuVzic0awTGjYA/640?wx_fmt=png&wxfrom=5&wx_lazy=1&wx_co=1)
+
+Docker默认允许容器以root用户的身份执行容器内的程序。OpenShift对容器的安全比Docker有更谨慎的态度。OpenShift默认在启动容器应用时使用非root用户。这可能会导致一些Docker镜像在OpenShift平台上启动时报出Permission denied的错误。可以通过修改OpenShift的安全配置，在制作自己的Docker镜像时，建议避免使用root用户启动容器内的应用，以降低安全风险。
+
+镜像为：openshift/hello-openshift ，可以在docker仓库直接拉取
+
+![Image](https://mmbiz.qpic.cn/mmbiz_png/BFyULpfKEVrAC3arsJ5upibAdanib9elqOtXkIGIaVAScm1oicUYOgJMQbs3kSzZY2qQLN0h6QUS4PJNqLOcmIibLw/640?wx_fmt=png&wxfrom=5&wx_lazy=1&wx_co=1)
+
+hello-openshift容器会成功启动。可以看到项目主页上的圆圈变成了蓝色，容器计数从“0”变成了“1”，说明容器已经成功启动了，当前有“1”个在运行的实例。
+
+![Image](https://mmbiz.qpic.cn/mmbiz_png/BFyULpfKEVrAC3arsJ5upibAdanib9elqOibWwnuSs2CRiawia1TlsKtm6pP1B7zlyTj9dukszCWD5xE19qcK1tFOIw/640?wx_fmt=png&wxfrom=5&wx_lazy=1&wx_co=1)
+
+### 访问容器应用
+
+![Image](https://mmbiz.qpic.cn/mmbiz_png/BFyULpfKEVrAC3arsJ5upibAdanib9elqOEibtmjv9zrZGu2oKOANtc28o6V7iaC1DrkbphYR7D6AALyhn9eW0CLeg/640?wx_fmt=png&wxfrom=5&wx_lazy=1&wx_co=1)
+
+`┌──[root@vms16.liruilongs.github.io]-[~]   └─$curl 172.17.0.10:8888   Hello OpenShift!   ┌──[root@vms16.liruilongs.github.io]-[~]   └─$curl 172.17.0.10:8080   Hello OpenShift!   `
+
+嗯，关于openshift基本认识就和小伙伴们聊到这里，感兴趣小伙伴可以深入研究下。
+
+## 整理参考书籍博文
+
+-   https://www.okd.io/
+-   https://github.com/openshift
+-   `《DO280 RED HAT OPENSHIFT ADMINISTRATION》`
+-   `《开源容器云OpenShift:构建基于Kubernetes的企业应用云平台》`
+-   https://blog.csdn.net/weixin_44258610/article/details/119773686
+-   https://www.cncf.io/blog/2022/01/19/how-to-run-kubernetes-without-docker/
