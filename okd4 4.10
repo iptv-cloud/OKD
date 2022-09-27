@@ -577,51 +577,51 @@ frontend stats
   stats auth admin:openshift
   stats uri /stats
 frontend openshift-api-server
-    bind *:6443
-    default_backend openshift-api-server
-    mode tcp
-    option tcplog
+  bind *:6443
+  default_backend openshift-api-server
+  mode tcp
+  option tcplog
 backend openshift-api-server
-    balance source
-    mode tcp
-    server bootstrap 10.10.20.206:6443 check 
-    server master0 10.10.20.207:6443 check
-    server master1 10.10.20.208:6443 check
-    server master2 10.10.20.209:6443 check
+  balance source
+  mode tcp
+  server bootstrap 10.10.20.206:6443 check 
+  server master0 10.10.20.207:6443 check
+  server master1 10.10.20.208:6443 check
+  server master2 10.10.20.209:6443 check
 frontend machine-config-server
-    bind *:22623
-    default_backend machine-config-server
-    mode tcp
-    option tcplog
+  bind *:22623
+  default_backend machine-config-server
+  mode tcp
+  option tcplog
 backend machine-config-server
-    balance source
-    mode tcp
-    server bootstrap 10.10.20.206:22623 check
-    server master0 10.10.20.207:22623 check
-    server master1 10.10.20.208:22623 check
-    server master2 10.10.20.209:22623 check
+  balance source
+  mode tcp
+  server bootstrap 10.10.20.206:22623 check
+  server master0 10.10.20.207:22623 check
+  server master1 10.10.20.208:22623 check
+  server master2 10.10.20.209:22623 check
 frontend ingress-http
-    bind *:80
-    default_backend ingress-http
-    mode tcp
-    option tcplog
+  bind *:80
+  default_backend ingress-http
+  mode tcp
+  option tcplog
 backend ingress-http
-    balance source
-    mode tcp
-    server worker0 10.10.20.210:80 check
-    server worker1 10.10.20.211:80 check
-    server worker2 10.10.20.212:80 check
+  balance source
+  mode tcp
+  server worker0 10.10.20.210:80 check
+  server worker1 10.10.20.211:80 check
+  server worker2 10.10.20.212:80 check
 frontend ingress-https
-    bind *:443
-    default_backend ingress-https
-    mode tcp
-    option tcplog
+  bind *:443
+  default_backend ingress-https
+  mode tcp
+  option tcplog
 backend ingress-https
-    balance source
-    mode tcp
-    server worker0 10.10.20.210:443 check
-    server worker1 10.10.20.211:443 check
-    server worker2 10.10.20.212:443 check
+  balance source
+  mode tcp
+  server worker0 10.10.20.210:443 check
+  server worker1 10.10.20.211:443 check
+  server worker2 10.10.20.212:443 check
 EOF
 ```
 
