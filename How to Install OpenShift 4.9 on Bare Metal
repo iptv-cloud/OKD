@@ -2,22 +2,17 @@
 
 
 Hello Techies, as you know Openshift provides container platform and can installed either on onprem or in public cloud using different methods like IPI (Installer Provisioned Installer), UPI (User Provisioned Infrastructure) and Assisted Bare Metal installer.
-
 In this post, we will demonstrate how to install Openshift 4.9 on bare metal nodes with UPI approach.
-
 For the demonstration purpose, I am using KVM virtual machines. Following are my lab setup details,
-
 Total Virtual Machines: 7
 
 Bastion Node:  
-
 -   OS – Rocky Linux 8 / CentOS 8,
 -   RAM- 4GB, vPCU-4,
 -   Disk- 120 GB
 -   Network: Management N/w – (169.144.104.228), ocp internal n/w – (192.168.110.115)
 
 Bootstrap Node:
-
 -   OS : Core OS
 -   RAM : 8GB
 -   vCPU: 4
@@ -79,50 +74,33 @@ $ sudo systemctl restart libvirtd
 Download Openshift Software from Red Hat portal
 
 a)    Login to Red Hat Portal using following URL:
-
 [https://cloud.redhat.com/openshift](https://cloud.redhat.com/openshift "https://cloud.redhat.com/openshift")
-
 b)    Click on Create Cluster
-
 c)     Choose Datacenter Tab –> Click on BareMetal
-
 d)    Select the Installation Type as ‘UPI’ (User-provisioned infrastructure)
-
 e)    Download the followings
-
 -   OpenShift Installer
 -   Pull Secret
 -   Command Line Interface
 -   RHCOS ISO
 -   RHCOS RAW
-
 [![Download-OpenShift-Software](https://www.linuxtechi.com/wp-content/uploads/2021/11/Download-OpenShift-Software-1024x451.png?ezimgfmt=rs:651x287/rscb22/ng:webp/ngcb22)](https://www.linuxtechi.com/wp-content/uploads/2021/11/Download-OpenShift-Software.png)
-
 [![Download-OCP-RHCOS-ISO-RAW](https://www.linuxtechi.com/wp-content/uploads/2021/11/Download-OCP-RHCOS-ISO-RAW-1024x436.png?ezimgfmt=rs:650x277/rscb22/ng:webp/ngcb22)](https://www.linuxtechi.com/wp-content/uploads/2021/11/Download-OCP-RHCOS-ISO-RAW.png)
 
 Let’s now jump into the installation steps of OpenShift
-
 ## Step 1) Prepare Bastion Node
-
 Create a virtual machine with resources mentioned above for bastion, you can install OS either Rocky Linux 8 or CentOS 8.  Assign the ip address from management and ocp internal network.
-
 Similarly create bootstrap, control plane VMs and Worker VMs and attach OCP network (hostnet) to interface and note down their mac address. So, in my case following are the MAC addresses,
-
 -   Bootstrap:  52:54:00:bf:60:a3
 -   ocp-cp1: 52:54:00:98:49:40
 -   ocp-cp2: 52:54:00:fe:8a:7c
 -   ocp-cp3: 52:54:00:58:d3:31
 -   ocp-w1: 52:54:00:38:8c:dd
 -   ocp-w2: 52:54:00:b8:84:40
-
 ## Step 2) Configure Services on bastion node
-
 Transfer the downloaded Openshift software including the secret to bastion node under the root folder.
-
 [![OpenShift-Software-Required](https://www.linuxtechi.com/wp-content/uploads/2021/11/OpenShift-Software-Required.png?ezimgfmt=rs:650x212/rscb22/ng:webp/ngcb22)](https://www.linuxtechi.com/wp-content/uploads/2021/11/OpenShift-Software-Required.png)
-
 Extract openshift client tar file using following [tar command](https://www.linuxtechi.com/17-tar-command-examples-in-linux/ "17 Useful Tar Command with Practical Examples in Linux"),
-
 ```
 # tar xvf openshift-client-linux.tar.gz
 # mv oc kubectl /usr/local/bin
@@ -133,18 +111,14 @@ Confirm openshift client tool installation and its version by running,
 # kubectl version
 ```
 Output of above command would look like below:
-
 [![Openshift-Client-Version](https://www.linuxtechi.com/wp-content/uploads/2021/11/Openshift-Client-Version-1024x105.png?ezimgfmt=rs:651x67/rscb22/ng:webp/ngcb22)](https://www.linuxtechi.com/wp-content/uploads/2021/11/Openshift-Client-Version.png)
-
 Extract Openshift Installer tar file,
 ```
 # tar xpvf openshift-install-linux.tar.gz
 README.md
 openshift-install
 ```
-
 #### Configure Zones and masquerading (SNAT)
-
 In my bastion node, I have two lan cards, ens3 and ens8. On ens3 , external or management network is configured and on ens8, ocp internal network is configured. So, define the following zones and enable masquerading on both the zones.
 ```
 # nmcli connection modify ens8 connection.zone internal
@@ -160,13 +134,9 @@ Verify the zone settings by running following firewall-cmd commands,
 # firewall-cmd --list-all --zone=external
 ```
 [![Zone-Settings-firewall-cmd](https://www.linuxtechi.com/wp-content/uploads/2021/11/Zone-Settings-firewall-cmd.png?ezimgfmt=rs:652x470/rscb22/ng:webp/ngcb22)](https://www.linuxtechi.com/wp-content/uploads/2021/11/Zone-Settings-firewall-cmd.png)
-
 Now let’s configure DNS, DHCP, Apache, HAProxy and NFS Service.
-
 Note: For the demonstration purpose, I am using ‘linuxtechi.lan’ as the base domain.
-
 #### Configure DNS Server
-
 To install DNS server and its dependencies, run following dnf command
 ```
 # dnf install bind bind-utils -y
@@ -176,24 +146,19 @@ Edit /etc/named.conf and make sure file has the following contents,
 # vi /etc/named.conf
 ```
 [![ocp-dns-linux](https://www.linuxtechi.com/wp-content/uploads/2021/11/ocp-dns-linux-1024x691.png?ezimgfmt=rs:652x440/rscb22/ng:webp/ngcb22)](https://www.linuxtechi.com/wp-content/uploads/2021/11/ocp-dns-linux.png)
-
 [![ocp-dns-domain-zone](https://www.linuxtechi.com/wp-content/uploads/2021/11/ocp-dns-domain-zone.png?ezimgfmt=rs:652x517/rscb22/ng:webp/ngcb22)](https://www.linuxtechi.com/wp-content/uploads/2021/11/ocp-dns-domain-zone.png)
-
 Now create forward and reverse zone file,
 ```
 # mkdir /etc/named/zones
 # vi /etc/named/zones/db.linuxtechi.lan
 ```
 [![DNS-Records-Zone-File](https://www.linuxtechi.com/wp-content/uploads/2021/11/DNS-Records-Zone-File-1024x763.png?ezimgfmt=rs:650x484/rscb22/ng:webp/ngcb22)](https://www.linuxtechi.com/wp-content/uploads/2021/11/DNS-Records-Zone-File.png)
-
 Save and exit the file.
-
 Create reverse zone file with following entries,
 ```
 # vi /etc/named/zones/db.reverse
 ```
 [![reverse-zone-dns-records](https://www.linuxtechi.com/wp-content/uploads/2021/11/reverse-zone-dns-records.png?ezimgfmt=rs:650x350/rscb22/ng:webp/ngcb22)](https://www.linuxtechi.com/wp-content/uploads/2021/11/reverse-zone-dns-records.png)
-
 Save and close the file and then start & enable dns service
 ```
 # systemctl start named
@@ -205,7 +170,6 @@ Allow the DNS port in firewall, run
 # firewall-cmd --reload
 ```
 #### Configure DHCP Server 
-
 Install and configure the dhcp server, bind the mac address of bootstrap, control planes and worker nodes to their respective IPs. Run below command to install dhcp package,
 ```
 # dnf install -y dhcp-server
@@ -213,7 +177,6 @@ Install and configure the dhcp server, bind the mac address of bootstrap, contro
 Edit the /etc/dhcp/dhcpd.conf file and add the following contents, use the mac addresses that we have collected in step1 and specify the IP address of nodes according the DNS entries. So in my case, content of file will look like below,
 ```
 [root@ocp-svc ~]# vi /etc/dhcp/dhcpd.conf
-
 authoritative;
 ddns-update-style interim;
 allow booting;
@@ -229,41 +192,33 @@ subnet 192.168.110.0 netmask 255.255.255.0 {
  option domain-name-servers       192.168.110.215;
  range 192.168.110.216 192.168.110.245;
 }
-
 host ocp-bootstrap {
  hardware ethernet 52:54:00:bf:60:a3;
  fixed-address 192.168.110.216;
 }
-
 host cp1 {
  hardware ethernet 52:54:00:98:49:40;
  fixed-address 192.168.110.217;
 }
-
 host cp2 {
  hardware ethernet 52:54:00:fe:8a:7c;
  fixed-address 192.168.110.218;
 }
-
 host cp3 {
  hardware ethernet 52:54:00:58:d3:31;
  fixed-address 192.168.110.219;
 }
-
 host w1 {
  hardware ethernet 52:54:00:38:8c:dd;
  fixed-address 192.168.110.220;
 }
-
 host w2 {
  hardware ethernet 52:54:00:b8:84:40;
  fixed-address 192.168.110.221;
 }
 ```
 [![DHCP-file-Contents](https://www.linuxtechi.com/wp-content/uploads/2021/11/DHCP-file-Contents.png?ezimgfmt=rs:650x527/rscb22/ng:webp/ngcb22)](https://www.linuxtechi.com/wp-content/uploads/2021/11/DHCP-file-Contents.png)
-
 Save and close the file.
-
 Start DHCP service and allow dhcp service for internal zone in firewall, run
 ```
 [root@ocp-svc ~]# systemctl start dhcpd
@@ -275,29 +230,20 @@ success
 [root@ocp-svc ~]#
 ```
 #### Configure Apache Web Server
-
 We need apache to serve ignition and rhcos file, so let’s first install it using below command,
 ```
 [root@ocp-svc ~]# dnf install -y  httpd
-
 Change the default apache listening port from 80 to 8080 by running beneath [sed command](https://www.linuxtechi.com/20-sed-command-examples-linux-users/ "20 Sed (Stream Editor) Command Examples for Linux Users")
-
 [root@ocp-svc ~]# sed -i 's/Listen 80/Listen 0.0.0.0:8080/' /etc/httpd/conf/httpd.conf
-
 Start and enable apache service via below command,
-
 [root@ocp-svc ~]# systemctl start httpd
 [root@ocp-svc ~]# systemctl enable httpd
-
 Allow Apache service port (8080) for internal zone,
-
 [root@ocp-svc ~]# firewall-cmd --add-port=8080/tcp --zone=internal --permanent
 [root@ocp-svc ~]# firewall-cmd --reload
 ```
 #### Configure HAProxy
-
 We will use haproxy to load balance the Openshift services like ectd, ingress http & ingress https and apps like openshift console.
-
 So, let’s first install haproxy by running following dnf command,
 ```
 [root@ocp-svc ~]#  dnf install -y haproxy
@@ -338,19 +284,16 @@ defaults
     timeout client          300000ms
     timeout server          300000ms
     timeout queue           50000ms
-
 # Enable HAProxy stats
 listen stats
     bind :9000
     stats uri /stats
     stats refresh 10000ms
-
 # Kube API Server
 frontend k8s_api_frontend
     bind :6443
     default_backend k8s_api_backend
     mode tcp
-
 backend k8s_api_backend
     mode tcp
     balance source
@@ -358,13 +301,11 @@ backend k8s_api_backend
     server      cp1 192.168.110.217:6443 check
     server      cp2 192.168.110.218:6443 check
     server      cp3 192.168.110.219:6443 check
-
 # OCP Machine Config Server
 frontend ocp_machine_config_server_frontend
     mode tcp
     bind :22623
     default_backend ocp_machine_config_server_backend
-
 backend ocp_machine_config_server_backend
     mode tcp
     balance source
@@ -372,13 +313,11 @@ backend ocp_machine_config_server_backend
     server      cp1 192.168.110.217:22623 check
     server      cp2 192.168.110.218:22623 check
     server      cp3 192.168.110.219:22623 check
-
 # OCP Ingress - layer 4 tcp mode for each. Ingress Controller will handle layer 7.
 frontend ocp_http_ingress_frontend
     bind :80
     default_backend ocp_http_ingress_backend
     mode tcp
-
 backend ocp_http_ingress_backend
     balance source
     mode tcp
@@ -387,12 +326,10 @@ backend ocp_http_ingress_backend
     server cp3 192.168.110.219:80 check
     server w1 192.168.110.220:80 check
     server w2 192.168.110.221:80 check
-
 frontend ocp_https_ingress_frontend
     bind *:443
     default_backend ocp_https_ingress_backend
     mode tcp
-
 backend ocp_https_ingress_backend
     mode tcp
     balance source
@@ -403,7 +340,6 @@ backend ocp_https_ingress_backend
     server w2 192.168.110.221:443 check
 ```
 save and exit the file.
-
 Start and enable haproxy to make above changes into the effect
 ```
 [root@ocp-svc ~]# setsebool -P haproxy_connect_any 1
@@ -502,40 +438,27 @@ pullSecret: '{"auths": ...}'           # Copy the pullsecret here
 sshKey: "ssh-ed25519 AAAA..."          # Copy ssh public key here
 ```
 In Line 23 and 24 copy contents of pull secret and public key that we generated above.
-
 After making the changes file will look like below:
-
 ![](https://i.imgur.com/jLSzSUx.png)
-
-
 c)   Generate manifests file
-
 Run following openshift-install command,
 ```
 [root@ocp-svc ~]# ~/openshift-install create manifests --dir ~/ocp-install
 ```
 ![](https://i.imgur.com/fASxsAn.png)
-
-
-
 Above warning message says that master nodes are schedulable, it means we can have workload on control planes (control planes will also work as worker nodes). If you wish to disable this then run following sed command,
 ```
 # sed -i 's/mastersSchedulable: true/mastersSchedulable: false/' ~/ocp-install/manifests/cluster-scheduler-02-config.yml
 ```
 Note: In my case, I am not disabling it.
-
 d)    Generate Ignition and auth file
-
 Run beneath openshift-install command,
 ```
 [root@ocp-svc ~]# ~/openshift-install create ignition-configs --dir ~/ocp-install/
 ```
 Output,
-
 ![](https://i.imgur.com/XR7OLR2.png)
-
 e)    Serve Manifests, ignition and core OS image file via web server
-
 Create /var/www/html/ocp4 directory and copy all the files from ‘/root/ocp-install’ to ocp4.
 ```
 [root@ocp-svc ~]# mkdir /var/www/html/ocp4
@@ -553,33 +476,18 @@ Verify whether these files are accessible or not via curl command
 [root@ocp-svc ~]# curl 192.168.110.215:8080/ocp4/
 ```
 Output should look like below
-
 ![](https://i.imgur.com/mcTRHg1.png)
-
-
 Perfect, now we are ready to start deployment.
 
 ## Step 4) Start OpenShift deployment
-
 Boot the bootstrap VM with rhcos-live ISO file. We will get the following screen
-
 ![](https://i.imgur.com/a1wyGqU.png)
-
-
 When it boots up with the ISO file, we will get the following screen,
-
 ![](https://i.imgur.com/q73u6G8.png)
-
-
 Type coreos-installer command and hit enter
-
 $ sudo coreos-installer install /dev/sda --insecure --image-url http://192.168.110.215:8080/ocp4/rhcos  --ignition-url http://192.168.110.215:8080/ocp4/bootstrap.ign --insecure-ignition
-
 Once the installation is completed, we will get the following screen,
-
 ![](https://i.imgur.com/jzzhvLF.png)
-
-
 Reboot the bootstrap node so that it boots up with hard disk this time.
 ```
 $ sudo reboot
@@ -589,13 +497,9 @@ Similarly boot all three-control plane nodes with RHEL Core OS (rhcos) ISO file.
 $ sudo coreos-installer install /dev/sda --insecure --image-url http://192.168.110.215:8080/ocp4/rhcos  --ignition-url http://192.168.110.215:8080/ocp4/master.ign --insecure-ignition
 ```
 ![](https://i.imgur.com/vctN1jX.png)
-
 Reboot the control plane and boot it with hard disk.
-
 Repeat this procedure for rest of control planes and monitor bootstrap process using following command.
-
 [root@ocp-svc ~]# ~/openshift-install --dir ~/ocp-install wait-for bootstrap-complete --log-level=debug
-
 Now, boot both the worker nodes with Core OS ISO file and once it boots up then run following command on the nodes
 ```
 $ sudo coreos-installer install /dev/sda --insecure --image-url http://192.168.110.215:8080/ocp4/rhcos  --ignition-url http://192.168.110.215:8080/ocp4/worker.ign --insecure-ignition
@@ -619,28 +523,17 @@ Run following oc command to approve the pending CSRs
 [root@ocp-svc ~]# oc get csr -o go-template='{{range .items}}{{if not .status}}{{.metadata.name}}{{"\n"}}{{end}}{{end}}' | xargs oc adm certificate approve
 ```
 Output of above two commands would look like below:
-
 ![](https://i.imgur.com/sjmYros.png)
-
-
 After couple of minutes, worker nodes should join the cluster and should be in ready state, run beneath commands to confirm the same.
 ```
 [root@ocp-svc ~]# oc get nodes
 ```
 ![](https://i.imgur.com/1mxIRoh.png)
-
-
 Great, above confirms that both worker nodes join the cluster and are in ready state.
-
 Also check the status of bootstrap and in the output we should get the following,
 ```
 [root@ocp-svc ~]# ~/openshift-install --dir ~/ocp-install wait-for bootstrap-complete --log-level=debug
 ```
 ![](https://i.imgur.com/1xwRpbV.png)
-
-
 Above confirms that bootstrap process is also completed, and we are good to stop and delete bootstrap VM resources and bootstrap entries from haproxy file.
-
 This conclude the article; I hope you find it informative. Please do share your feedback and comments.
-
-
