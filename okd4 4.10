@@ -1,0 +1,1851 @@
+# OpenShift 4.10
+
+RedHat OpenShift 是一个领先的企业级 [Kubernetes](https://so.csdn.net/so/search?q=Kubernetes&spm=1001.2101.3001.7020) 容器平台，它为本地、混合和多云部署提供了基础。通过自动化运营和简化的生命周期管理，OpenShift 使开发团队能够构建和部署新的应用程序，并帮助运营团队配置、管理和扩展 Kubernetes 平台，OpenShift 还提供了一个CLI，该CLI支持Kubernetes CLI提供的操作的超集。  
+![在这里插入图片描述](https://img-blog.csdnimg.cn/834ab30e62084b4a99c2624f3d34fe94.png?x-oss-process=image/watermark,type_d3F5LXplbmhlaQ,shadow_50,text_Q1NETiBAd2lsbGJsb2c=,size_20,color_FFFFFF,t_70,g_se,x_16)  
+OpenShift有多个版本，两个主要版本：
+
+-   红帽OpenShift的开源社区版本称为OKD（The Origin Community Distribution of Kubernetes，或OpenShift Kubernetes Distribution的缩写，原名OpenShiftOrigin），是 Red Hat OpenShift Container Platform (OCP) 的上游和社区支持版本。
+-   红帽OpenShift的企业版本称为OCP（Red Hat OpenShift Container Platform ），OpenShift 的私有云产品，不购买订阅也可以安装使用，只是不提供技术支持。
+
+OpenShift安装方式分为以下两种：
+
+-   IPI(Installer Provisioned Infrastructure)方式：安装程序配置的基础架构集群，基础架构引导和配置委托给安装程序，而不是自己进行。安装程序会创建支持集群所需的所有网络、机器和操作系统。
+-   UPI(User Provisioned Infrastructure)方式：用户配置的基础架构集群，必须由用户自行提供所有集群基础架构和资源，包括引导节点、网络、负载均衡、存储和集群的每个节点。
+
+本文基于VMware vSphere7.0.3环境创建多个虚拟机，并在虚拟机上使用UPI模式手动部署OpenShift OKD 4.10版本集群，即官方介绍的[Bare Metal (UPI)](https://github.com/openshift/installer#supported-platforms)模式。
+
+安装架构示意图:  
+![在这里插入图片描述](https://img-blog.csdnimg.cn/9709f99d210b43479d8140a1022aee39.png?x-oss-process=image/watermark,type_d3F5LXplbmhlaQ,shadow_50,text_Q1NETiBAd2lsbGJsb2c=,size_20,color_FFFFFF,t_70,g_se,x_16)  
+安装流程示意图：  
+![在这里插入图片描述](https://img-blog.csdnimg.cn/d266bdfb45fe4645bd83a77db55a97e6.png?x-oss-process=image/watermark,type_d3F5LXplbmhlaQ,shadow_50,text_Q1NETiBAd2lsbGJsb2c=,size_20,color_FFFFFF,t_70,g_se,x_16)
+
+## OKD社区版安装
+
+官方文档参考：[https://docs.okd.io/latest/installing/installing_bare_metal/installing-bare-metal.html](https://docs.okd.io/latest/installing/installing_bare_metal/installing-bare-metal.html)
+
+备注：本篇文章大多内容出自官方文档示例。
+
+**集群基本信息**
+
+-   集群名称：okd4
+-   基本域名：[omera.com](http://omera.com/)
+-   集群规格：3个maste节点，3个worker节点
+
+**节点配置清单：**
+
+前期只需创建一个bastion节点，在bastion节点准备就绪后，其他节点需要逐个手动引导启动，无需提前创建。
+
+Hostname
+
+FQDN
+
+IPaddress
+
+NodeType
+
+CPU
+
+Mem
+
+Disk
+
+OS
+
+bastion
+
+[bastion.okd4.omera.com](http://bastion.okd4.omera.com/)
+
+10.10.20.204
+
+基础节点
+
+2C
+
+4G
+
+100G
+
+Ubuntu 20.04.4 LTS
+
+bootstrap
+
+[bootstrap.okd4.omera.com](http://bootstrap.okd4.omera.com/)
+
+10.10.20.206
+
+引导节点
+
+4C
+
+16G
+
+100G
+
+Fedora CoreOS 35
+
+master0
+
+[master0.okd4.omera.com](http://master0.okd4.omera.com/)
+
+10.10.20.207
+
+主控节点
+
+4C
+
+16G
+
+100G
+
+Fedora CoreOS 35
+
+master1
+
+[master1.okd4.omera.com](http://master1.okd4.omera.com/)
+
+10.10.20.28
+
+主控节点
+
+4C
+
+16G
+
+100G
+
+Fedora CoreOS 35
+
+master2
+
+[master2.okd4.omera.com](http://master2.okd4.omera.com/)
+
+10.10.20.209
+
+主控节点
+
+4C
+
+16G
+
+100G
+
+Fedora CoreOS 35
+
+worker0
+
+[worker0.okd4.omera.com](http://worker0.okd4.omera.com/)
+
+10.10.20.210
+
+工作节点
+
+2C
+
+8G
+
+100G
+
+Fedora CoreOS 35
+
+worker1
+
+[worker1.okd4.omera.com](http://worker1.okd4.omera.com/)
+
+10.10.20.211
+
+工作节点
+
+2C
+
+8G
+
+100G
+
+Fedora CoreOS 35
+
+api server
+
+[worker2.okd4.omera.com](http://worker1.okd4.omera.com/)
+
+10.10.20.212
+
+工作节点
+
+2C
+
+8G
+
+100G
+
+Fedora CoreOS 35
+
+api server
+[api.okd4.omera.com](http://api.okd4.omera.com/)
+
+10.10.20.204
+
+Kubernetes API
+
+api-int
+
+[api-int.okd4.omera.com](http://api-int.okd4.omera.com/)
+
+10.10.20.204
+
+Kubernetes API
+
+apps
+
+[*.apps.okd4.omera.com](http://api-int.okd4.omera.com/)
+
+10.10.20.204
+
+Apps
+
+registry
+
+[registry.omera.com](http://registry.omera.com/)
+
+10.10.20.204
+
+镜像仓库
+
+节点类型介绍：
+
+-   Bastion节点，基础节点或堡垒机节点，提供http服务和registry的本地安装仓库服务，同时所有的ign点火文件，coreos所需要的ssh-rsa密钥等都由这个节点生成，OS类型可以任意。
+-   Bootstrap节点，引导节点，引导工作完成后续可以删除，OS类型必须为Fedora CoreOS
+-   Master节点，openshift的管理节点，操作系统必须为Fedora CoreOS
+-   Worker节点，openshift的工作节点，操作系统可以在 Fedora CoreOS、Fedora 8.4 或 Fedora 8.5 之间进行选择。
+
+**bastion节点需要安装以下组件：**
+组件名称	组件说明
+- Docker	容器环境
+- Bind9	DNS服务器
+- Haproxy	负载均衡服务器
+- Nginx	Web服务器
+- Harbor	容器镜像仓库
+- OpenShift CLI	oc命令行客户端
+- OpenShift-Install	openshift安装程序
+
+
+部署完成后的基础资源信息：
+
+![在这里插入图片描述](https://img-blog.csdnimg.cn/5bed38f2638f4112b8bd1d2922c24f59.png?x-oss-process=image/watermark,type_d3F5LXplbmhlaQ,shadow_50,text_Q1NETiBAd2lsbGJsb2c=,size_20,color_FFFFFF,t_70,g_se,x_16)  
+部署完成后的openshift节点信息：  
+![在这里插入图片描述](https://img-blog.csdnimg.cn/0dbecee779dc45a09007c3eecf8a3547.png?x-oss-process=image/watermark,type_d3F5LXplbmhlaQ,shadow_50,text_Q1NETiBAd2lsbGJsb2c=,size_20,color_FFFFFF,t_70,g_se,x_16)
+
+## Bastion环境准备
+
+首先创建一台Bastion 节点，配置静态IP地址，作为基础部署节点，操作系统类型没有要求，这里使用ubuntu，无特殊说明以下所有操作在该节点执行。
+
+1、修改主机名
+
+```bash
+hostnamectl set-hostname bastion.okd4.omera.com
+```
+
+2、安装docker
+
+```bash
+curl -fsSL https://get.docker.com | bash -s docker 
+systemctl status docker
+docker version
+```
+
+3、查看节点ip信息
+
+```bash
+root@bastion:~# ip a
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host 
+       valid_lft forever preferred_lft forever
+2: ens18: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP group default qlen 1000
+    link/ether 00:50:56:99:0d:57 brd ff:ff:ff:ff:ff:ff
+    inet 10.10.20.20420.10.10/24 brd 10.10.20.255 scope global ens160
+       valid_lft forever preferred_lft forever
+    inet6 fe80::250:56ff:fe99:d57/64 scope link 
+       valid_lft forever preferred_lft forever
+```
+
+4、查看OS发行版本
+
+```bash
+root@bastion:~# lsb_release -a
+No LSB modules are available.
+Distributor ID: Ubuntu
+Description:    Ubuntu 20.04.4 LTS
+Release:        20.04
+Codename:       focal
+```
+
+## Bind安装
+
+在 OKD 部署中，以下组件需要 DNS 名称解析：
+
+-   Kubernetes API
+-   OKD 应用访问入口
+-   引导节点、控制平面和计算节点
+
+Kubernetes API、引导机器、控制平面机器和计算节点也需要反向 DNS 解析。DNS A/AAAA 或 CNAME 记录用于名称解析，PTR 记录用于反向名称解析。反向记录很重要，因为 Fedora CoreOS (FCOS) 使用反向记录来设置所有节点的主机名，除非主机名由 DHCP 提供。此外，反向记录用于生成 OKD 需要操作的证书签名请求 (CSR)。
+
+在每条记录中，`<cluster_name>`是集群名称，并且`<base_domain>`是在`install-config.yaml`文件中指定的基本域。完整的 DNS 记录采用以下形式：`<component>.<cluster_name>.<base_domain>.`.
+
+1、创建bind配置文件目录
+
+```bash
+mkdir -p /etc/bind
+mkdir -p /var/lib/bind
+mkdir -p /var/cache/bind
+```
+
+2、创建bind主配置文件
+
+```bash
+cat >/etc/bind/named.conf<<EOF
+options {
+        directory "/var/cache/bind";
+        listen-on { any; };
+        listen-on-v6 { any; };
+        allow-query { any; };
+        allow-query-cache { any; };
+        recursion yes;
+        allow-recursion { any; };
+        allow-transfer { none; };
+        allow-update { none; };
+        auth-nxdomain no;
+        dnssec-validation no;
+        forward first;
+        forwarders {
+          8.8.8.8;
+        };
+};
+
+zone "omera.com" IN {
+  type master;
+  file "/var/lib/bind/omera.com.zone";
+};
+
+zone "20.10.10.in-addr.arpa" IN {
+  type master;
+  file "/var/lib/bind/20.10.10.in-addr.arpa";
+};
+EOF
+```
+
+4、创建正向解析配置文件
+
+```bash
+cat >/var/lib/bind/omera.com.zone<<'EOF'
+$TTL 1W
+@   IN    SOA    ns1.omera.com.    root (
+                 2019070700        ; serial
+                 3H                ; refresh (3 hours)
+                 30M               ; retry (30 minutes)
+                 2W                ; expiry (2 weeks)
+                 1W )              ; minimum (1 week)
+    IN    NS     ns1.omera.com.
+    IN    MX 10  smtp.omera.com.
+;
+ns1.omera.com.            IN A 10.10.20.204
+smtp.omera.com.           IN A 10.10.20.204
+;
+registry.omera.com.       IN A 10.10.20.204
+api.okd4.omera.com.       IN A 10.10.20.204
+api-int.okd4.omera.com.   IN A 10.10.20.204
+;
+*.apps.okd4.omera.com.    IN A 10.10.20.204
+;
+bastion.okd4.omera.com.   IN A 10.10.20.204
+bootstrap.okd4.omera.com. IN A 10.10.20.206
+;
+master0.okd4.omera.com.   IN A 10.10.20.207
+master1.okd4.omera.com.   IN A 10.10.20.208
+master2.okd4.omera.com.   IN A 10.10.20.209
+;
+worker0.okd4.omera.com.   IN A 10.10.20.210
+worker1.okd4.omera.com.   IN A 10.10.20.211
+worker2.okd4.omera.com.   IN A 10.10.20.212
+EOF
+```
+
+5、创建反向解析配置文件
+
+```bash
+cat >/var/lib/bind/20.10.10.in-addr.arpa<<'EOF'
+$TTL 1W
+@   IN    SOA      ns1.omera.com.     root (
+                   2019070700        ; serial
+                   3H                ; refresh (3 hours)
+                   30M               ; retry (30 minutes)
+                   2W                ; expiry (2 weeks)
+                   1W )              ; minimum (1 week)
+    IN    NS       ns1.omera.com.
+;
+204.20.10.10.in-addr.arpa. IN PTR api.okd4.omera.com.
+204.20.10.10.in-addr.arpa. IN PTR api-int.okd4.omera.com.
+;
+204.20.10.10.in-addr.arpa. IN PTR bastion.okd4.omera.com.
+
+206.20.10.10.in-addr.arpa. IN PTR bootstrap.okd4.omera.com.
+;
+207.20.10.10.in-addr.arpa. IN PTR master0.okd4.omera.com.
+208.20.10.10.in-addr.arpa. IN PTR master1.okd4.omera.com.
+209.20.10.10.in-addr.arpa. IN PTR master2.okd4.omera.com.
+;
+210.20.10.10.in-addr.arpa. IN PTR worker0.okd4.omera.com.
+211.20.10.10.in-addr.arpa. IN PTR worker1.okd4.omera.com.
+212.20.10.10.in-addr.arpa. IN PTR worker2.okd4.omera.com.
+EOF
+```
+
+配置文件权限，允许容器有读写权限
+
+```bash
+chmod -R a+rwx /etc/bind
+chmod -R a+rwx /var/lib/bind/
+chmod -R a+rwx /var/cache/bind/
+```
+
+6、ubuntu中的dns由systemd-resolved管理，修改以下配置项，指定dns为本地DNS：
+
+```bash
+root@ubuntu:~# cat /etc/systemd/resolved.conf 
+[Resolve]
+DNS=10.10.20.20
+```
+
+重启systemd-resolved服务
+
+```bash
+systemctl restart systemd-resolved.service
+```
+
+创建到resolv.conf的链接：
+
+```bash
+ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
+```
+
+查看resolv.conf配置，确认输出内容如下：
+
+```bash
+root@ubuntu:~# cat /etc/resolv.conf 
+......
+# operation for /etc/resolv.conf.
+
+nameserver 10.10.20.204
+nameserver 8.8.8.8
+```
+
+7、以容器方式启动bind服务，注意绑定到本机IP，以免与ubuntu默认dns服务53端口冲突：
+
+```bash
+docker run -d --name bind9 \
+  --restart always \
+  --name=bind9 \
+  -e TZ=America/Toronto \
+  --publish 10.10.20.204:53:53/udp \
+  --publish 10.10.20.204:53:53/tcp \
+  --publish 10.10.20.204:953:953/tcp \
+  --volume /etc/bind:/etc/bind \
+  --volume /var/cache/bind:/var/cache/bind \
+  --volume /var/lib/bind:/var/lib/bind \
+  --volume /var/log/bind:/var/log \
+  internetsystemsconsortium/bind9:9.18
+```
+
+8、使用dig命令来验证正向域名解析
+
+```bash
+dig +noall +answer @10.10.20.204 registry.omera.com
+dig +noall +answer @10.10.20.204 api.okd4.omera.com
+dig +noall +answer @10.10.20.204 api-int.okd4.omera.com
+dig +noall +answer @10.10.20.204 console-openshift-console.apps.okd4.omera.com
+dig +noall +answer @10.10.20.204 bootstrap.okd4.omera.com
+dig +noall +answer @10.10.20.204 master0.okd4.omera.com
+dig +noall +answer @10.10.20.204 master1.okd4.omera.com
+dig +noall +answer @10.10.20.204 master2.okd4.omera.com
+dig +noall +answer @10.10.20.204 worker0.okd4.omera.com
+dig +noall +answer @10.10.20.204 worker1.okd4.omera.com
+dig +noall +answer @10.10.20.204 worker2.okd4.omera.com
+```
+
+正向解析结果如下，确认每一项都能够正常解析
+
+```bash
+root@bastion:~# dig +noall +answer @10.10.20.204 registry.omera.com
+registry.omera.com.   604800  IN      A       10.10.20.204
+root@bastion:~# dig +noall +answer @10.10.20.204 api.okd4.omera.com
+api.okd4.omera.com.   604800  IN      A       10.10.20.204
+root@bastion:~# dig +noall +answer @10.10.20.204 api-int.okd4.omera.com
+api-int.okd4.omera.com. 604800 IN     A       10.10.20.204
+root@bastion:~# dig +noall +answer @10.10.20.204 console-openshift-console.apps.okd4.omera.com
+console-openshift-console.apps.okd4.omera.com. 604800 IN A 10.10.20.204
+root@bastion:~# dig +noall +answer @10.10.20.204 bootstrap.okd4.omera.com
+bootstrap.okd4.omera.com. 604800 IN   A       10.10.20.206
+root@bastion:~# dig +noall +answer @10.10.20.204 master0.okd4.omera.com
+master0.okd4.omera.com. 604800 IN     A       10.10.20.207
+root@bastion:~# dig +noall +answer @10.10.20.204 master1.okd4.omera.com
+master1.okd4.omera.com. 604800 IN     A       10.10.20.208
+root@bastion:~# dig +noall +answer @10.10.20.204 master2.okd4.omera.com
+master2.okd4.omera.com. 604800 IN     A       10.10.20.209
+root@bastion:~# dig +noall +answer @10.10.20.204 worker0.okd4.omera.com
+worker0.okd4.omera.com. 604800 IN     A       10.10.20.210
+root@bastion:~# dig +noall +answer @10.10.20.204 worker1.okd4.omera.com
+worker1.okd4.omera.com. 604800 IN     A       10.10.20.211
+root@bastion:~# dig +noall +answer @10.10.20.204 worker2.okd4.omera.com
+worker2.okd4.omera.com. 604800 IN     A       10.10.20.212
+```
+
+验证反向域名解析
+
+```bash
+dig +noall +answer @10.10.20.204 -x 10.10.20.206
+dig +noall +answer @10.10.20.204 -x 10.10.20.207
+dig +noall +answer @10.10.20.204 -x 10.10.20.208
+dig +noall +answer @10.10.20.204 -x 10.10.20.209
+dig +noall +answer @10.10.20.204 -x 10.10.20.210
+dig +noall +answer @10.10.20.204 -x 10.10.20.211
+dig +noall +answer @10.10.20.204 -x 10.10.20.212
+```
+
+反向解析结果如下，同样需要确认每一项都能够正常解析
+
+```bash
+root@bastion:~# dig +noall +answer @10.10.20.204 -x 10.10.20.206
+206.20.10.10.in-addr.arpa. 604800 IN   PTR     bootstrap.okd4.omera.com.
+root@bastion:~# dig +noall +answer @10.10.20.204 -x 10.10.20.207
+207.20.10.10.in-addr.arpa. 604800 IN   PTR     master0.okd4.omera.com.
+root@bastion:~# dig +noall +answer @10.10.20.204 -x 10.10.20.208
+208.20.10.10.in-addr.arpa. 604800 IN   PTR     master1.okd4.omera.com.
+root@bastion:~# dig +noall +answer @10.10.20.204 -x 10.10.20.209
+209.20.10.10.in-addr.arpa. 604800 IN   PTR     master2.okd4.omera.com.
+root@bastion:~# dig +noall +answer @10.10.20.204 -x 10.10.20.210
+210.20.10.10.in-addr.arpa. 604800 IN   PTR     worker0.okd4.omera.com.
+root@bastion:~# dig +noall +answer @10.10.20.204 -x 10.10.20.211
+211.20.10.10.in-addr.arpa. 604800 IN   PTR     worker1.okd4.omera.com.
+root@bastion:~# dig +noall +answer @10.10.20.204 -x 10.10.20.212
+212.20.10.10.in-addr.arpa. 604800 IN   PTR     worker2.okd4.omera.com.
+```
+
+## 安装Haproxy
+
+使用haproxy创建负载均衡器，负载machine-config、kube-apiserver和集群ingress controller。
+
+1、创建haproxy配置目录
+
+```bash
+mkdir -p /etc/haproxy
+```
+
+2、创建haproxy配置文件
+
+```bash
+cat >/etc/haproxy/haproxy.cfg<<EOF
+global
+  log         127.0.0.1 local2
+  maxconn     4000
+  daemon
+defaults
+  mode                    http
+  log                     global
+  option                  dontlognull
+  option http-server-close
+  option                  redispatch
+  retries                 3
+  timeout http-request    10s
+  timeout queue           1m
+  timeout connect         10s
+  timeout client          1m
+  timeout server          1m
+  timeout http-keep-alive 10s
+  timeout check           10s
+  maxconn                 3000
+frontend stats
+  bind *:1936
+  mode            http
+  log             global
+  maxconn 10
+  stats enable
+  stats hide-version
+  stats refresh 30s
+  stats show-node
+  stats show-desc Stats for openshift cluster 
+  stats auth admin:openshift
+  stats uri /stats
+frontend openshift-api-server
+    bind *:6443
+    default_backend openshift-api-server
+    mode tcp
+    option tcplog
+backend openshift-api-server
+    balance source
+    mode tcp
+    server bootstrap 10.10.20.206:6443 check 
+    server master0 10.10.20.207:6443 check
+    server master1 10.10.20.208:6443 check
+    server master2 10.10.20.209:6443 check
+frontend machine-config-server
+    bind *:22623
+    default_backend machine-config-server
+    mode tcp
+    option tcplog
+backend machine-config-server
+    balance source
+    mode tcp
+    server bootstrap 10.10.20.206:22623 check
+    server master0 10.10.20.207:22623 check
+    server master1 10.10.20.208:22623 check
+    server master2 10.10.20.209:22623 check
+frontend ingress-http
+    bind *:80
+    default_backend ingress-http
+    mode tcp
+    option tcplog
+backend ingress-http
+    balance source
+    mode tcp
+    server worker0 10.10.20.210:80 check
+    server worker1 10.10.20.211:80 check
+    server worker2 10.10.20.212:80 check
+frontend ingress-https
+    bind *:443
+    default_backend ingress-https
+    mode tcp
+    option tcplog
+backend ingress-https
+    balance source
+    mode tcp
+    server worker0 10.10.20.210:443 check
+    server worker1 10.10.20.211:443 check
+    server worker2 10.10.20.212:443 check
+EOF
+```
+
+以容器方式启动haproxy服务
+
+```bash
+docker run -d --name haproxy \
+  --restart always \
+  -p 1936:1936 \
+  -p 6443:6443 \
+  -p 22623:22623 \
+  -p 80:80 -p 443:443 \
+  --sysctl net.ipv4.ip_unprivileged_port_start=0 \
+  -v /etc/haproxy/:/usr/local/etc/haproxy:ro \
+  haproxy:2.5.5-alpine3.15
+```
+
+## 安装Nginx
+
+OpenShift 集群部署时需要从 web服务器下载 CoreOS Image 和 Ignition 文件，这里使用nginx提供文件下载。
+
+1、创建nginx相关目录
+
+```bash
+mkdir -p /etc/nginx/templates
+mkdir -p /usr/share/nginx/html/{ignition,install}
+```
+
+2、创建nginx配置文件，打开目录浏览功能（可选）
+
+```bash
+cat >/etc/nginx/templates/default.conf.template<<EOF
+server {
+    listen       80;
+    listen  [::]:80;
+    server_name  localhost;
+
+    location / {
+        root   /usr/share/nginx/html;
+        index  index.html index.htm;
+        autoindex on;
+        autoindex_exact_size off;
+        autoindex_format html;
+        autoindex_localtime on;
+    }
+
+    error_page   500 502 503 504  /50x.html;
+    location = /50x.html {
+        root   /usr/share/nginx/html;
+    }
+}
+EOF
+```
+
+修改文件权限，允许容器内部读写
+
+```bash
+chmod -R a+rwx /etc/nginx/
+chmod -R a+rwx /usr/share/nginx/
+```
+
+3、以容器方式启动nginx服务，注意修改为以下端口以免冲突
+
+```bash
+docker run -d --name nginx-okd \
+  --restart always \
+  -p 8088:80 \
+  -v /etc/nginx/templates:/etc/nginx/templates \
+  -v /usr/share/nginx/html:/usr/share/nginx/html:ro \
+  nginx:1.21.6-alpine
+```
+
+浏览器访问验证：  
+![在这里插入图片描述](https://img-blog.csdnimg.cn/f7abe802d7c94336873db74e0c7eea47.png?x-oss-process=image/watermark,type_d3F5LXplbmhlaQ,shadow_50,text_Q1NETiBAd2lsbGJsb2c=,size_20,color_FFFFFF,t_70,g_se,x_16)
+
+## 安装OpenShift CLI
+
+OpenShift CLI ( oc) 用于从命令行界面与 OKD 交互，可以在 Linux、Windows 或 macOS 上安装oc。
+
+下载地址：[https://github.com/openshift/okd/releases](https://github.com/openshift/okd/releases)
+
+1、下载openshift-client到本地，如果网络不好可以使用浏览器下载后在上传到bastion节点
+
+```bash
+wget https://github.com/openshift/okd/releases/download/4.10.0-0.okd-2022-03-07-131213/openshift-client-linux-4.10.0-0.okd-2022-03-07-131213.tar.gz
+```
+
+2、解压到/usr/local/bin目录下
+
+```bash
+tar -zxvf openshift-client-linux-4.10.0-0.okd-2022-03-07-131213.tar.gz
+cp oc /usr/local/bin/
+cp kubectl /usr/local/bin/
+```
+
+3、检查版本，后续拉取镜像需要该版本信息
+
+```bash
+[root@bastion ~]# oc version
+Client Version: 4.10.0-0.okd-2022-03-07-131213
+```
+
+4、配置oc命令补全
+
+```bash
+oc completion bash > oc_completion.sh
+```
+
+编辑bashrc文件，追加一行
+
+```bash
+cat >>.bashrc <<EOF
+source ~/oc_completion.sh
+EOF
+```
+
+## 安装OpenShift安装程序
+
+openshift-install是OpenShift 4.x cluster的安装程序，是openshift集群的安装部署工具。
+
+下载地址：[https://github.com/openshift/okd/releases](https://github.com/openshift/okd/releases)
+
+1、下载openshift-install到本地，版本与openshift CLI要一致：
+
+```bash
+wget https://github.com/openshift/okd/releases/download/4.10.0-0.okd-2022-03-07-131213/openshift-install-linux-4.10.0-0.okd-2022-03-07-131213.tar.gz
+```
+
+2、解压到/usr/local/bin目录下
+
+```bash
+tar -zxvf openshift-install-linux-4.10.0-0.okd-2022-03-07-131213.tar.gz 
+cp openshift-install /usr/local/bin/
+```
+
+3、检查版本
+
+```bash
+[root@bastion ~]# openshift-install version
+openshift-install 4.10.0-0.okd-2022-03-07-131213
+built from commit 3b701903d96b6375f6c3852a02b4b70fea01d694
+release image quay.io/openshift/okd@sha256:2eee0db9818e22deb4fa99737eb87d6e9afcf68b4e455f42bdc3424c0b0d0896
+release architecture amd64
+```
+
+## 安装harbor镜像仓库
+
+使用harbor作为openshift镜像仓库，提前将对应版本镜像同步到本地仓库，加快后续安装过程。
+
+1、安装docker-compose
+
+```bash
+curl -L "https://get.daocloud.io/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+chmod +x /usr/local/bin/docker-compose
+docker-compose version
+```
+
+2、下载harbor并解压
+
+```bash
+curl -L https://github.com/goharbor/harbor/releases/download/v2.4.2/harbor-offline-installer-v2.4.2.tgz -o ./harbor-offline-installer-v2.4.2.tgz
+tar -zxf harbor-offline-installer-v2.4.2.tgz -C /opt/
+```
+
+
+3、生成harbor https证书，注意修改域名信息，参考自[harbor官方文档](https://goharbor.io/docs/2.4.0/install-config/configure-https/)
+
+```bash
+mkdir -p /opt/harbor/cert
+cd /opt/harbor/cert
+
+openssl genrsa -out ca.key 4096
+
+openssl req -x509 -new -nodes -sha512 -days 3650 \
+ -subj "/C=CA/ST=ON/L=Toronto/O=omera/OU=Personal/CN=registry.omera.com" \
+ -key ca.key \
+ -out ca.crt
+
+openssl genrsa -out registry.omera.com.key 4096
+
+openssl req -sha512 -new \
+    -subj "/C=CA/ST=ON/L=Toronto/O=omera/OU=Personal/CN=registry.omera.com" \
+    -key registry.omera.com.key \
+    -out registry.omera.com.csr
+	
+cat > v3.ext <<-EOF
+authorityKeyIdentifier=keyid,issuer
+basicConstraints=CA:FALSE
+keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment
+extendedKeyUsage = serverAuth
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1=registry.omera.com
+DNS.2=registry.omera
+DNS.3=registry
+EOF
+
+openssl x509 -req -sha512 -days 3650 \
+    -extfile v3.ext \
+    -CA ca.crt -CAkey ca.key -CAcreateserial \
+    -in registry.omera.com.csr \
+    -out registry.omera.com.crt
+```
+
+查看生成的证书
+
+```bash
+root@bastion:/opt/harbor/cert#  ll
+total 28
+drwxr-xr-x 2 root root  158 Apr  3 21:51 ./
+drwxr-xr-x 3 root root   19 Apr  3 21:39 ../
+-rw-r--r-- 1 root root 2069 Apr  3 21:49 ca.crt
+-rw------- 1 root root 3243 Apr  3 21:49 ca.key
+-rw-r--r-- 1 root root   41 Apr  3 21:51 ca.srl
+-rw-r--r-- 1 root root 2151 Apr  3 21:51 registry.omera.com.crt
+-rw-r--r-- 1 root root 1716 Apr  3 21:50 registry.omera.com.csr
+-rw------- 1 root root 3243 Apr  3 21:50 registry.omera.com.key
+-rw-r--r-- 1 root root  277 Apr  3 21:50 v3.ext
+```
+
+复制证书到操作系统目录
+
+```bash
+cp ca.crt registry.omera.com.crt /usr/local/share/ca-certificates/
+update-ca-certificates
+```
+
+复制证书到harbor运行目录
+
+```bash
+mkdir -p /data/cert/
+cp registry.omera.com.crt /data/cert/
+cp registry.omera.com.key /data/cert/
+```
+
+将证书提供给docker
+
+```bash
+openssl x509 -inform PEM -in registry.omera.com.crt -out registry.omera.com.cert
+
+mkdir -p /etc/docker/certs.d/registry.omera.com:8443
+cp registry.omera.com.cert /etc/docker/certs.d/registry.omera.com:8443/
+cp registry.omera.com.key /etc/docker/certs.d/registry.omera.com:8443/
+cp ca.crt /etc/docker/certs.d/registry.omera.com:8443/
+```
+
+4、修改harbor配置文件，调整以下内容，注意修改为以下端口，以免与haproxy冲突
+
+```bash
+cd /opt/harbor
+cp harbor.yml.tmpl harbor.yml
+
+# nano harbor.yml
+hostname: registry.omera.com
+http:
+  port: 8080
+https:
+  port: 8443
+  certificate: /data/cert/registry.omera.com.crt
+  private_key: /data/cert/registry.omera.com.key
+```
+
+5、安装并启动harbor
+
+```bash
+./install.sh
+```
+
+配置harbor开机自启动
+
+```bash
+cat >/etc/systemd/system/harbor.service<<EOF
+[Unit]
+Description=Harbor
+After=docker.service systemd-networkd.service systemd-resolved.service
+Requires=docker.service
+Documentation=http://github.com/goharbor/harbor
+
+[Service]
+Type=simple
+Restart=on-failure
+RestartSec=5
+ExecStart=/usr/local/bin/docker-compose -f /opt/harbor/docker-compose.yml up
+ExecStop=/usr/local/bin/docker-compose -f /opt/harbor/docker-compose.yml down
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl enable harbor
+```
+
+确认harbor运行状态正常
+
+```bash
+root@bastion:/opt/harbor# docker-compose ps
+      Name                     Command                  State                                             Ports                                       
+------------------------------------------------------------------------------------------------------------------------------------------------------
+harbor-core         /harbor/entrypoint.sh            Up (healthy)                                                                                     
+harbor-db           /docker-entrypoint.sh 96 13      Up (healthy)                                                                                     
+harbor-jobservice   /harbor/entrypoint.sh            Up (healthy)                                                                                     
+harbor-log          /bin/sh -c /usr/local/bin/ ...   Up (healthy)   127.0.0.1:1514->10514/tcp                                                         
+harbor-portal       nginx -g daemon off;             Up (healthy)                                                                                     
+nginx               nginx -g daemon off;             Up (healthy)   0.0.0.0:8080->8080/tcp,:::8080->8080/tcp, 0.0.0.0:8443->8443/tcp,:::8443->8443/tcp
+redis               redis-server /etc/redis.conf     Up (healthy)                                                                                     
+registry            /home/harbor/entrypoint.sh       Up (healthy)                                                                                     
+registryctl         /home/harbor/start.sh            Up (healthy)               
+```
+
+验证登录harbor，用户名为admin，默认密码为Harbor12345
+
+```bash
+docker login registry.omera.com:8443
+```
+
+浏览器访问Harbor，注意，本地配置好hosts解析或指定dns服务器
+
+```bash
+https://registry.omera.com:8443
+```
+
+手动创建一个项目名为openshift  
+![在这里插入图片描述](https://img-blog.csdnimg.cn/2ecaf6acf7e54b8699f928dc92cacb30.png?x-oss-process=image/watermark,type_d3F5LXplbmhlaQ,shadow_50,text_Q1NETiBAd2lsbGJsb2c=,size_20,color_FFFFFF,t_70,g_se,x_16)
+
+## 同步okd镜像到harbor仓库
+
+harbor镜像仓库准备就绪后，开始将quay.io中的openshit okd容器镜像同步到本地。
+
+1、创建一个openshift临时安装目录
+
+```bash
+mkdir -p /opt/okd-install/4.10.0/
+cd /opt/okd-install/4.10.0/
+```
+
+2、在红帽网站注册账号，下载pull-secret：[https://console.redhat.com/openshift/install/pull-secret](https://console.redhat.com/openshift/install/pull-secret)，
+
+```bash
+root@bastion:/opt/okd-install/4.10.0# cat pull-secret.txt
+{"auths":{"cloud.openshift.com":{"auth":"b3BlbnNoaWZ0LXJlbGVhc2UtZGV2K29jbV9hY2Nlc3NfZTY0ZTQ5NTg1ODhkNDdhMDlhNjgyZjUxMjdhN2Y4NDU6T0RIWVpUOFk4Q002QzVJUDIwN0xUOUZHMkFNQjdYTDlWNU02M0NKMkNENlNaV05QTDRURkExSEpaS0IyRkMzUQ==","email":"adam.xie@acentury.co"},"quay.io":{"auth":"b3BlbnNoaWZ0LXJlbGVhc2UtZGV2K29jbV9hY2Nlc3NfZTY0ZTQ5NTg1ODhkNDdhMDlhNjgyZjUxMjdhN2Y4NDU6T0RIWVpUOFk4Q002QzVJUDIwN0xUOUZHMkFNQjdYTDlWNU02M0NKMkNENlNaV05QTDRURkExSEpaS0IyRkMzUQ==","email":"adam.xie@acentury.co"},"registry.connect.redhat.com":{"auth":"fHVoYy1wb29sLTg2NDczZWE4LTYwY2UtNDU2MC04NjZiLTI2MmEyNThjMGRhOTpleUpoYkdjaU9pSlNVelV4TWlKOS5leUp6ZFdJaU9pSTBPVGcwTURZM1ltRXhaalUwWkRreU9ERTNNV05oTVRka05EbGpNekUxTXlKOS5tc1ZDMV9TNFBGSnNxdzRJY1kydzhSWktLeVNvQVZvMnJaNmhQYTlJeTcxaDdyR2VZZ2RKaXMtMkJKbWY0akU5NHAxbmRzdmliaHVpMVFpNG4yS0ozTHdEaEw1TG1xaXFvVk9fejZadWt5MW9BcmkwMDNwaVVMQS1HRHNVYk80WW1Td2YydlJMWGNKQ1ZKR24tYl9ic2s1Z1hLRjl3dV9aQnE5cEhmRVk4NkhmLVFza0ZPRW5tRmVjeW94V0JIdWgzazBlNXRmZmJ1TDhtMXZyUHN6ZEE4aERRZjJGOWlaUUlxS0dQVW1TZ2I1bTc3d2VCSkQ1SG1WYkx3TkJIaWsyZ1BwblNsYThrMEVRU3JfWmdzXy03VFg2TnpSTVNEVmhTVEVmaC15RGhoQldZdjNQTmNyTmxmTnVQT2ZkN2FhMkRGQ2tJXzhqVkhja3ZFUXJ2bW5JcWhCRFo4ci02MVhNejJkcnVrRDdRMmY1TUkzcnVneXczOFQyMmZPWWdrRkE0MU9TcmJDMjU3RHY4dFdibG5OWVp5clRTQ3ZuY1hNMUNscXJDMTVuOXh3U2U5TkUyVTF2UnA1UVo0TzdSbDNiZWJCRFlQaVRvQjg1NEpJRzk5clhXWXZNUFpNMzgybjZENUY1cWEtYjYwaHI3OTZQaEwyVGpjeFVNQlFzeG9ocEhMbGRRMWhDYXZ1bWt3dFNuMkd3X0VhLTFlNGxWSmhuVVA3MFZ5dTBYWmY1WDBqdVlqTDN3OFdhQXpLdmNLN0tmWFNpZ2k3X2ZleW91MHlwNDBBeExDUGtKVFpZdGZXUVJhbmVabVp4NEE3QUkwaENtaE1nZUk3bGZKS0RQS25Ec2RlUW03cFVQR3NWWmgtZXBpeHlsSE9JZDVSYWE0ekRLTWVxZExrclVmQQ==","email":"adam.xie@acentury.co"},"registry.redhat.io":{"auth":"fHVoYy1wb29sLTg2NDczZWE4LTYwY2UtNDU2MC04NjZiLTI2MmEyNThjMGRhOTpleUpoYkdjaU9pSlNVelV4TWlKOS5leUp6ZFdJaU9pSTBPVGcwTURZM1ltRXhaalUwWkRreU9ERTNNV05oTVRka05EbGpNekUxTXlKOS5tc1ZDMV9TNFBGSnNxdzRJY1kydzhSWktLeVNvQVZvMnJaNmhQYTlJeTcxaDdyR2VZZ2RKaXMtMkJKbWY0akU5NHAxbmRzdmliaHVpMVFpNG4yS0ozTHdEaEw1TG1xaXFvVk9fejZadWt5MW9BcmkwMDNwaVVMQS1HRHNVYk80WW1Td2YydlJMWGNKQ1ZKR24tYl9ic2s1Z1hLRjl3dV9aQnE5cEhmRVk4NkhmLVFza0ZPRW5tRmVjeW94V0JIdWgzazBlNXRmZmJ1TDhtMXZyUHN6ZEE4aERRZjJGOWlaUUlxS0dQVW1TZ2I1bTc3d2VCSkQ1SG1WYkx3TkJIaWsyZ1BwblNsYThrMEVRU3JfWmdzXy03VFg2TnpSTVNEVmhTVEVmaC15RGhoQldZdjNQTmNyTmxmTnVQT2ZkN2FhMkRGQ2tJXzhqVkhja3ZFUXJ2bW5JcWhCRFo4ci02MVhNejJkcnVrRDdRMmY1TUkzcnVneXczOFQyMmZPWWdrRkE0MU9TcmJDMjU3RHY4dFdibG5OWVp5clRTQ3ZuY1hNMUNscXJDMTVuOXh3U2U5TkUyVTF2UnA1UVo0TzdSbDNiZWJCRFlQaVRvQjg1NEpJRzk5clhXWXZNUFpNMzgybjZENUY1cWEtYjYwaHI3OTZQaEwyVGpjeFVNQlFzeG9ocEhMbGRRMWhDYXZ1bWt3dFNuMkd3X0VhLTFlNGxWSmhuVVA3MFZ5dTBYWmY1WDBqdVlqTDN3OFdhQXpLdmNLN0tmWFNpZ2k3X2ZleW91MHlwNDBBeExDUGtKVFpZdGZXUVJhbmVabVp4NEE3QUkwaENtaE1nZUk3bGZKS0RQS25Ec2RlUW03cFVQR3NWWmgtZXBpeHlsSE9JZDVSYWE0ekRLTWVxZExrclVmQQ==","email":"adam.xie@acentury.co"}}}
+```
+
+转换为json格式
+
+```bash
+apt install -y jq
+cat ./pull-secret.txt | jq . > pull-secret.json
+```
+
+生成本地harbor镜像仓库base64位的加密口令
+
+```bash
+echo -n 'admin:Harbor12345' | base64 -w0
+```
+
+创建harbor镜像仓库登录文件
+
+```json
+cat >pull-secret-local.json<<EOF
+{
+    "auths":{
+        "registry.omera.com:8443":{
+            "auth":"YWRtaW46SGFyYm9yMTIzNDU=",
+            "email":""
+        }
+    }
+}
+EOF
+```
+
+将harbor镜像仓库登录文件内容追加到pull-secret.json中，最终示例如下:
+
+```yaml={
+  "auths": {
+    "cloud.openshift.com": {
+      "auth": "b3BlbnNoaWZ0LXJlbGVhc2UtZGV2K29jbV9hY2Nlc3NfZTY0ZTQ5NTg1ODhkNDdhMDlhNjgyZjUxMjdhN2Y4NDU6T0RIWVpUOFk4Q002QzVJUDIwN0xUOUZHMkFNQjdYTDlWNU02M0NKMkNENlNaV05QTDRURkExSEpaS0IyRkMzUQ==",
+      "email": "adam.xie@acentury.co"
+    },
+    "quay.io": {
+      "auth": "b3BlbnNoaWZ0LXJlbGVhc2UtZGV2K29jbV9hY2Nlc3NfZTY0ZTQ5NTg1ODhkNDdhMDlhNjgyZjUxMjdhN2Y4NDU6T0RIWVpUOFk4Q002QzVJUDIwN0xUOUZHMkFNQjdYTDlWNU02M0NKMkNENlNaV05QTDRURkExSEpaS0IyRkMzUQ==",
+      "email": "adam.xie@acentury.co"
+    },
+    "registry.connect.redhat.com": {
+      "auth": "fHVoYy1wb29sLTg2NDczZWE4LTYwY2UtNDU2MC04NjZiLTI2MmEyNThjMGRhOTpleUpoYkdjaU9pSlNVelV4TWlKOS5leUp6ZFdJaU9pSTBPVGcwTURZM1ltRXhaalUwWkRreU9ERTNNV05oTVRka05EbGpNekUxTXlKOS5tc1ZDMV9TNFBGSnNxdzRJY1kydzhSWktLeVNvQVZvMnJaNmhQYTlJeTcxaDdyR2VZZ2RKaXMtMkJKbWY0akU5NHAxbmRzdmliaHVpMVFpNG4yS0ozTHdEaEw1TG1xaXFvVk9fejZadWt5MW9BcmkwMDNwaVVMQS1HRHNVYk80WW1Td2YydlJMWGNKQ1ZKR24tYl9ic2s1Z1hLRjl3dV9aQnE5cEhmRVk4NkhmLVFza0ZPRW5tRmVjeW94V0JIdWgzazBlNXRmZmJ1TDhtMXZyUHN6ZEE4aERRZjJGOWlaUUlxS0dQVW1TZ2I1bTc3d2VCSkQ1SG1WYkx3TkJIaWsyZ1BwblNsYThrMEVRU3JfWmdzXy03VFg2TnpSTVNEVmhTVEVmaC15RGhoQldZdjNQTmNyTmxmTnVQT2ZkN2FhMkRGQ2tJXzhqVkhja3ZFUXJ2bW5JcWhCRFo4ci02MVhNejJkcnVrRDdRMmY1TUkzcnVneXczOFQyMmZPWWdrRkE0MU9TcmJDMjU3RHY4dFdibG5OWVp5clRTQ3ZuY1hNMUNscXJDMTVuOXh3U2U5TkUyVTF2UnA1UVo0TzdSbDNiZWJCRFlQaVRvQjg1NEpJRzk5clhXWXZNUFpNMzgybjZENUY1cWEtYjYwaHI3OTZQaEwyVGpjeFVNQlFzeG9ocEhMbGRRMWhDYXZ1bWt3dFNuMkd3X0VhLTFlNGxWSmhuVVA3MFZ5dTBYWmY1WDBqdVlqTDN3OFdhQXpLdmNLN0tmWFNpZ2k3X2ZleW91MHlwNDBBeExDUGtKVFpZdGZXUVJhbmVabVp4NEE3QUkwaENtaE1nZUk3bGZKS0RQS25Ec2RlUW03cFVQR3NWWmgtZXBpeHlsSE9JZDVSYWE0ekRLTWVxZExrclVmQQ==",
+      "email": "adam.xie@acentury.co"
+    },
+    "registry.redhat.io": {
+      "auth": "fHVoYy1wb29sLTg2NDczZWE4LTYwY2UtNDU2MC04NjZiLTI2MmEyNThjMGRhOTpleUpoYkdjaU9pSlNVelV4TWlKOS5leUp6ZFdJaU9pSTBPVGcwTURZM1ltRXhaalUwWkRreU9ERTNNV05oTVRka05EbGpNekUxTXlKOS5tc1ZDMV9TNFBGSnNxdzRJY1kydzhSWktLeVNvQVZvMnJaNmhQYTlJeTcxaDdyR2VZZ2RKaXMtMkJKbWY0akU5NHAxbmRzdmliaHVpMVFpNG4yS0ozTHdEaEw1TG1xaXFvVk9fejZadWt5MW9BcmkwMDNwaVVMQS1HRHNVYk80WW1Td2YydlJMWGNKQ1ZKR24tYl9ic2s1Z1hLRjl3dV9aQnE5cEhmRVk4NkhmLVFza0ZPRW5tRmVjeW94V0JIdWgzazBlNXRmZmJ1TDhtMXZyUHN6ZEE4aERRZjJGOWlaUUlxS0dQVW1TZ2I1bTc3d2VCSkQ1SG1WYkx3TkJIaWsyZ1BwblNsYThrMEVRU3JfWmdzXy03VFg2TnpSTVNEVmhTVEVmaC15RGhoQldZdjNQTmNyTmxmTnVQT2ZkN2FhMkRGQ2tJXzhqVkhja3ZFUXJ2bW5JcWhCRFo4ci02MVhNejJkcnVrRDdRMmY1TUkzcnVneXczOFQyMmZPWWdrRkE0MU9TcmJDMjU3RHY4dFdibG5OWVp5clRTQ3ZuY1hNMUNscXJDMTVuOXh3U2U5TkUyVTF2UnA1UVo0TzdSbDNiZWJCRFlQaVRvQjg1NEpJRzk5clhXWXZNUFpNMzgybjZENUY1cWEtYjYwaHI3OTZQaEwyVGpjeFVNQlFzeG9ocEhMbGRRMWhDYXZ1bWt3dFNuMkd3X0VhLTFlNGxWSmhuVVA3MFZ5dTBYWmY1WDBqdVlqTDN3OFdhQXpLdmNLN0tmWFNpZ2k3X2ZleW91MHlwNDBBeExDUGtKVFpZdGZXUVJhbmVabVp4NEE3QUkwaENtaE1nZUk3bGZKS0RQS25Ec2RlUW03cFVQR3NWWmgtZXBpeHlsSE9JZDVSYWE0ekRLTWVxZExrclVmQQ==",
+      "email": "adam.xie@acentury.co"
+    },
+    "registry.omera.com:8443": {
+      "auth": "YWRtaW46SGFyYm9yMTIzNDU=",
+      "email": ""
+    }
+  }
+}
+```
+
+3、查看oc版本号
+
+```bash=
+root@bastion:/opt/okd-install/4.10.0# oc version
+Client Version: 4.10.0-0.okd-2022-03-07-131213
+```
+
+配置以下变量
+
+```bash
+export OKD_RELEASE="4.10.0-0.okd-2022-03-07-131213"
+export LOCAL_REGISTRY='registry.omera.com:8443'
+export LOCAL_REPOSITORY='openshift/okd'
+export PRODUCT_REPO='openshift'
+export LOCAL_SECRET_JSON='/opt/okd-install/4.10.0/pull-secret.json'
+export RELEASE_NAME="okd"
+```
+
+开始从quay.io拉取okd镜像并同步到本地harbor仓库：
+
+```bash
+oc adm release mirror -a ${LOCAL_SECRET_JSON}  \
+     --from=quay.io/${PRODUCT_REPO}/${RELEASE_NAME}:${OKD_RELEASE} \
+     --to=${LOCAL_REGISTRY}/${LOCAL_REPOSITORY} \
+     --to-release-image=${LOCAL_REGISTRY}/${LOCAL_REPOSITORY}:${OKD_RELEASE}
+```
+
+查看执行过程，执行完成后如下，记录末尾imageContentSources内容，后续需要添加到安装配置文件中。
+
+```bash
+sha256:f70bce9d6de9c5e3cb5d94ef9745629ef0fb13a8873b815499bba55dd7b8f04b registry.omera.com:8443/openshift/okd:4.10.0-0.okd-2022-03-07-131213-x86_64-multus-whereabouts-ipam-cni
+sha256:d4e2220f04f6073844155a68cc53b93badfad700bf3da2da1a9240dff8ba4984 registry.omera.com:8443/openshift/okd:4.10.0-0.okd-2022-03-07-131213-x86_64-csi-external-attacher
+info: Mirroring completed in 6m5.16s (2.9MB/s)
+
+Success
+Update image:  registry.omera.com:8443/openshift/okd:4.10.0-0.okd-2022-03-07-131213
+Mirror prefix: registry.omera.com:8443/openshift/okd
+Mirror prefix: registry.omera.com:8443/openshift/okd:4.10.0-0.okd-2022-03-07-131213
+
+To use the new mirrored repository to install, add the following section to the install-config.yaml:
+
+imageContentSources:
+- mirrors:
+  - registry.omera.com:8443/openshift/okd
+  source: quay.io/openshift/okd
+- mirrors:
+  - registry.omera.com:8443/openshift/okd
+  source: quay.io/openshift/okd-content
+
+
+To use the new mirrored repository for upgrades, use the following to create an ImageContentSourcePolicy:
+
+apiVersion: operator.openshift.io/v1alpha1
+kind: ImageContentSourcePolicy
+metadata:
+  name: example
+spec:
+  repositoryDigestMirrors:
+  - mirrors:
+    - registry.omera.com:8443/openshift/okd
+    source: quay.io/openshift/okd
+  - mirrors:
+    - registry.omera.com:8443/openshift/okd
+    source: quay.io/openshift/okd-content
+```
+
+4、登录harbor仓库，确认镜像已经存在，当前版本共169个镜像，占用磁盘空间约12.5GB：  
+![](https://i.imgur.com/I1KWcz5.png)
+
+
+## 创建OpenShift安装配置文件
+
+1、为集群节点 SSH 访问生成密钥对。
+
+在 OKD 安装期间，可以向安装程序提供 SSH 公钥。密钥通过其 Ignition 配置文件传递给 Fedora CoreOS (FCOS) 节点，并用于验证对节点的 SSH 访问，将密钥传递给节点后，您可以使用密钥对以`core`用户身份 SSH 进入 FCOS 节点。
+
+```bash
+[root@bastion ~]# ssh-keygen -t rsa -b 4096 -N '' -f ~/.ssh/id_rsa
+```
+
+启动 ssh-agent 进程为后台任务
+
+```bash
+[root@bastion ~]# eval "$(ssh-agent -s)"
+```
+
+将 SSH 私钥添加到 ssh-agent
+
+```bash
+[root@bastion ~]# ssh-add ~/.ssh/id_rsa
+```
+
+查看生成的ssh公钥，后续需要复制到install-config.yaml文件的`sshKey`字段：
+
+```bash
+[root@bastion ~]# cat /root/.ssh/id_rsa.pub
+ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC9BZlCCbAru7O9LtY96ozqsMYRGd6hpb+ojs264BFXPnCaRHIxVusnGNNqGWKJIlKOicnjZmYppus0Uj1TNmF+uuBXq6mqnTaS1kAoHU2Ir4W3b1DIdhXEYQGuivwdqqiz+P+rDfKBj3/sQhFvuiE3BQlXkAlEgqpOvOG7Pmkq+he4VERePtTpCygiVHHWJvQNEXJZN1u5tx+nFCguU+FQ61o5+Nnb0fgQQvZCb3de65lwBAMQW8BI/azmc8sYMgWBFMzIT4IjVKU7Cch2ip2tiManQxYn/LWm+lp5F5dDS8r5pUrqKsys6E49rptgty/V+DKwAZen5n1cP/j93DmNCvzVQ6+JPiPgAFAs38oNJlpn/gLSgJghxpxqSJRNm09Ql4ScBFcyD8NicbbxSFpKy5xU4nOvLJG/liCQSORn3yNnPeKclgWQ0TNK1Wabvter9DK2AmxuLpap1OWENiPSQjQyXPPM5UdJcDhknWL+GMC2A7oUuuMwzKfRAYj+z84nqmuGZo1teRUcyeKPIIqDhyLODbeCNGIZluIFm1yCwNtRM5qg7jgvs0sd/ST/4PV6MQnQFTHukKX/LDMKKo47IjSt309dEj85LVYo5YfzZnX1JOTZC5NEw/nWVxdDsXI0SoGD8gUq/no4ngx6k4pe10X4N6KzQxTH1FTQUAdllQ== root@bastion.okd4.omera.com
+```
+
+2、查看harbor CA证书信息，后续需要复制到install-config.yaml文件的`additionalTrustBundle`字段：
+
+```bash
+[root@bastion ~]# cat /opt/harbor/cert/ca.crt
+```
+-----BEGIN CERTIFICATE-----
+MIIFuTCCA6GgAwIBAgIUPmv8L7Kp8gHtvxLLdXgH/6uG6DEwDQYJKoZIhvcNAQEN
+BQAwbDELMAkGA1UEBhMCQ0ExCzAJBgNVBAgMAk9OMRAwDgYDVQQHDAdUb3JvbnRv
+
+
+
+3、查看harbor仓库登录密钥，使用jq将密钥压缩为一行，后续需要复制到install-config.yaml文件的`pullSecret`字段：
+
+```bash
+root@bastion:~# cat /opt/okd-install/4.10.0/pull-secret.json|jq -c
+```
+
+4、手动创建安装配置文件，必须命名为install-config.yaml：
+
+```bash
+[root@bastion ~]# nano /opt/okd-install/4.10.0/install-config.yaml
+```
+
+配置如下内容：
+
+```yaml=
+apiVersion: v1
+baseDomain: omera.com
+compute:
+- hyperthreading: Enabled
+  name: worker
+  replicas: 0
+controlPlane:
+  hyperthreading: Enabled
+  name: master
+  replicas: 3
+metadata:
+  name: okd4
+networking:
+  clusterNetwork:
+  - cidr: 10.128.0.0/14
+    hostPrefix: 23
+  networkType: OVNKubernetes
+  serviceNetwork:
+  - 172.30.0.0/16
+platform:
+  none: {}
+fips: false
+pullSecret:  '{"auths":{"cloud.openshift.com":{"auth":"b3BlbnNoaWZ0LXJlbGVhc2UtZGV2K29jbV9hY2Nlc3NfZTY0ZTQ5NTg1ODhkNDdhMDlhNjgyZjUxMjdhN2Y4NDU6T0RIWVpUOFk4Q002QzVJUDIwN0xUOUZHMkFNQjdYTDlWNU02M0NKMkNENlNaV05QTDRURkExSEpaS0IyRkMzUQ==","email":"adam.xie@acentury.co"},"quay.io":{"auth":"b3BlbnNoaWZ0LXJlbGVhc2UtZGV2K29jbV9hY2Nlc3NfZTY0ZTQ5NTg1ODhkNDdhMDlhNjgyZjUxMjdhN2Y4NDU6T0RIWVpUOFk4Q002QzVJUDIwN0xUOUZHMkFNQjdYTDlWNU02M0NKMkNENlNaV05QTDRURkExSEpaS0IyRkMzUQ==","email":"adam.xie@acentury.co"},"registry.connect.redhat.com":{"auth":"fHVoYy1wb29sLTg2NDczZWE4LTYwY2UtNDU2MC04NjZiLTI2MmEyNThjMGRhOTpleUpoYkdjaU9pSlNVelV4TWlKOS5leUp6ZFdJaU9pSTBPVGcwTURZM1ltRXhaalUwWkRreU9ERTNNV05oTVRka05EbGpNekUxTXlKOS5tc1ZDMV9TNFBGSnNxdzRJY1kydzhSWktLeVNvQVZvMnJaNmhQYTlJeTcxaDdyR2VZZ2RKaXMtMkJKbWY0akU5NHAxbmRzdmliaHVpMVFpNG4yS0ozTHdEaEw1TG1xaXFvVk9fejZadWt5MW9BcmkwMDNwaVVMQS1HRHNVYk80WW1Td2YydlJMWGNKQ1ZKR24tYl9ic2s1Z1hLRjl3dV9aQnE5cEhmRVk4NkhmLVFza0ZPRW5tRmVjeW94V0JIdWgzazBlNXRmZmJ1TDhtMXZyUHN6ZEE4aERRZjJGOWlaUUlxS0dQVW1TZ2I1bTc3d2VCSkQ1SG1WYkx3TkJIaWsyZ1BwblNsYThrMEVRU3JfWmdzXy03VFg2TnpSTVNEVmhTVEVmaC15RGhoQldZdjNQTmNyTmxmTnVQT2ZkN2FhMkRGQ2tJXzhqVkhja3ZFUXJ2bW5JcWhCRFo4ci02MVhNejJkcnVrRDdRMmY1TUkzcnVneXczOFQyMmZPWWdrRkE0MU9TcmJDMjU3RHY4dFdibG5OWVp5clRTQ3ZuY1hNMUNscXJDMTVuOXh3U2U5TkUyVTF2UnA1UVo0TzdSbDNiZWJCRFlQaVRvQjg1NEpJRzk5clhXWXZNUFpNMzgybjZENUY1cWEtYjYwaHI3OTZQaEwyVGpjeFVNQlFzeG9ocEhMbGRRMWhDYXZ1bWt3dFNuMkd3X0VhLTFlNGxWSmhuVVA3MFZ5dTBYWmY1WDBqdVlqTDN3OFdhQXpLdmNLN0tmWFNpZ2k3X2ZleW91MHlwNDBBeExDUGtKVFpZdGZXUVJhbmVabVp4NEE3QUkwaENtaE1nZUk3bGZKS0RQS25Ec2RlUW03cFVQR3NWWmgtZXBpeHlsSE9JZDVSYWE0ekRLTWVxZExrclVmQQ==","email":"adam.xie@acentury.co"},"registry.redhat.io":{"auth":"fHVoYy1wb29sLTg2NDczZWE4LTYwY2UtNDU2MC04NjZiLTI2MmEyNThjMGRhOTpleUpoYkdjaU9pSlNVelV4TWlKOS5leUp6ZFdJaU9pSTBPVGcwTURZM1ltRXhaalUwWkRreU9ERTNNV05oTVRka05EbGpNekUxTXlKOS5tc1ZDMV9TNFBGSnNxdzRJY1kydzhSWktLeVNvQVZvMnJaNmhQYTlJeTcxaDdyR2VZZ2RKaXMtMkJKbWY0akU5NHAxbmRzdmliaHVpMVFpNG4yS0ozTHdEaEw1TG1xaXFvVk9fejZadWt5MW9BcmkwMDNwaVVMQS1HRHNVYk80WW1Td2YydlJMWGNKQ1ZKR24tYl9ic2s1Z1hLRjl3dV9aQnE5cEhmRVk4NkhmLVFza0ZPRW5tRmVjeW94V0JIdWgzazBlNXRmZmJ1TDhtMXZyUHN6ZEE4aERRZjJGOWlaUUlxS0dQVW1TZ2I1bTc3d2VCSkQ1SG1WYkx3TkJIaWsyZ1BwblNsYThrMEVRU3JfWmdzXy03VFg2TnpSTVNEVmhTVEVmaC15RGhoQldZdjNQTmNyTmxmTnVQT2ZkN2FhMkRGQ2tJXzhqVkhja3ZFUXJ2bW5JcWhCRFo4ci02MVhNejJkcnVrRDdRMmY1TUkzcnVneXczOFQyMmZPWWdrRkE0MU9TcmJDMjU3RHY4dFdibG5OWVp5clRTQ3ZuY1hNMUNscXJDMTVuOXh3U2U5TkUyVTF2UnA1UVo0TzdSbDNiZWJCRFlQaVRvQjg1NEpJRzk5clhXWXZNUFpNMzgybjZENUY1cWEtYjYwaHI3OTZQaEwyVGpjeFVNQlFzeG9ocEhMbGRRMWhDYXZ1bWt3dFNuMkd3X0VhLTFlNGxWSmhuVVA3MFZ5dTBYWmY1WDBqdVlqTDN3OFdhQXpLdmNLN0tmWFNpZ2k3X2ZleW91MHlwNDBBeExDUGtKVFpZdGZXUVJhbmVabVp4NEE3QUkwaENtaE1nZUk3bGZKS0RQS25Ec2RlUW03cFVQR3NWWmgtZXBpeHlsSE9JZDVSYWE0ekRLTWVxZExrclVmQQ==","email":"adam.xie@acentury.co"},"registry.omera.com:8443":{"auth":"YWRtaW46SGFyYm9yMTIzNDU=","email":""}}}'
+sshKey:  'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC9BZlCCbAru7O9LtY96ozqsMYRGd6hpb+ojs264BFXPnCaRHIxVusnGNNqGWKJIlKOicnjZmYppus0Uj1TNmF+uuBXq6mqnTaS1kAoHU2Ir4W3b1DIdhXEYQGuivwdqqiz+P+rDfKBj3/sQhFvuiE3BQlXkAlEgqpOvOG7Pmkq+he4VERePtTpCygiVHHWJvQNEXJZN1u5tx+nFCguU+FQ61o5+Nnb0fgQQvZCb3de65lwBAMQW8BI/azmc8sYMgWBFMzIT4IjVKU7Cch2ip2tiManQxYn/LWm+lp5F5dDS8r5pUrqKsys6E49rptgty/V+DKwAZen5n1cP/j93DmNCvzVQ6+JPiPgAFAs38oNJlpn/gLSgJghxpxqSJRNm09Ql4ScBFcyD8NicbbxSFpKy5xU4nOvLJG/liCQSORn3yNnPeKclgWQ0TNK1Wabvter9DK2AmxuLpap1OWENiPSQjQyXPPM5UdJcDhknWL+GMC2A7oUuuMwzKfRAYj+z84nqmuGZo1teRUcyeKPIIqDhyLODbeCNGIZluIFm1yCwNtRM5qg7jgvs0sd/ST/4PV6MQnQFTHukKX/LDMKKo47IjSt309dEj85LVYo5YfzZnX1JOTZC5NEw/nWVxdDsXI0SoGD8gUq/no4ngx6k4pe10X4N6KzQxTH1FTQUAdllQ== root@bastion.okd4.omera.com'
+additionalTrustBundle: |
+  -----BEGIN CERTIFICATE-----
+  MIIFuTCCA6GgAwIBAgIUPmv8L7Kp8gHtvxLLdXgH/6uG6DEwDQYJKoZIhvcNAQEN
+  BQAwbDELMAkGA1UEBhMCQ0ExCzAJBgNVBAgMAk9OMRAwDgYDVQQHDAdUb3JvbnRv
+  MQ4wDAYDVQQKDAVvbWVyYTERMA8GA1UECwwIUGVyc29uYWwxGzAZBgNVBAMMEnJl
+  Z2lzdHJ5Lm9tZXJhLmNvbTAeFw0yMjA5MjcwMjQ0MDZaFw0zMjA5MjQwMjQ0MDZa
+  MGwxCzAJBgNVBAYTAkNBMQswCQYDVQQIDAJPTjEQMA4GA1UEBwwHVG9yb250bzEO
+  MAwGA1UECgwFb21lcmExETAPBgNVBAsMCFBlcnNvbmFsMRswGQYDVQQDDBJyZWdp
+  c3RyeS5vbWVyYS5jb20wggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoICAQC1
+  3rUc9VITRHfDxmR2N1AXDFWZ/WbMLGduJvVeO0qa+U8aNkHK2XtUnLFGLsWvdc9e
+  Ak5nURWTWSRMgyHBwBJ+bF8IS2up3LZ/oFqOwVnF0vjVc2qnHJojdOPi6Alkw5VO
+  +oAZWt1/sLrRLlLpJAwfmx9TBlNnJeaj2Tr4j4x1zB3zTbifFk3MAcxWLVt7my2R
+  PBkbcxWnz5KJSqlJuJudgYk0gWD6nOssDUK6WpfW13yrIfcks1JYStURn+9OVZg+
+  xvhRHHv91lWchXwNJJPMDBioP7/ZhOAYirXw2d/3EJPXnEInSBl92JfG1aCrA0w7
+  ZP6qoMm6CT21pEtTs3s0MfYtWRphXtLioKge9AGmQ8cav/yMHyKQtoks8awNWsYe
+  LN1uMVE7xb3r8LseUnf43yn3/BpscZvfuG00vqZYSBTjcy7r5ySggnYy4sQPmqrZ
+  VYh+c/4wTf3ZoW29wBGGbBoNIVLFcC94I6kLdEaRh+Q0X0+nbqnUgJdWE6ctvRHF
+  Glu/0U5lbI3l8Pr0M3zlsxYhSGIs9wTAFHAQrhNe/VU8eqvQjtUaJYOP2dDf5dWf
+  f3U579mdOjNa1hzgXRPF9QqUlFDOpNzLvQSbJwnjZU5rJzXprcNqebYKMDc8WgvJ
+  7F2zYOM3vYWQTcCVlkRsd5C5W6Fdm9N/OCTg72nUoQIDAQABo1MwUTAdBgNVHQ4E
+  FgQUeqzanAm8KsQTVH2s+y0OX/jG7hwwHwYDVR0jBBgwFoAUeqzanAm8KsQTVH2s
+  +y0OX/jG7hwwDwYDVR0TAQH/BAUwAwEB/zANBgkqhkiG9w0BAQ0FAAOCAgEAq0AK
+  UCMsYnUg8lDM/8Mdjro85jkb8P71XOuO0+JZr9CFVlZAbLnI1kjkzgA3Qh0oAdns
+  sSyg2nnVMauKIgKaiFpUReVkcqlqEZtbvzOfxgnv2WhOPB04zVvuxydBTFLnUuHO
+  gPEhwk45LtW12Bda7GVkgPwnekXrEstGUXzHSe4lIrVS0NIDjlMpYBnOrU0n/6JQ
+  N4ObpAYWRheDFa/DFUQVF2x1NJOKyFh/OHwclDYygm7sndB0PR9BszV3/5TYQEFr
+  //dSVWEikSJqzot+jPEuHQOUewPB4HMpYrMcPapReuFUlAMK+UItvxKDH77k71nO
+  1lFtgDu8XG+hB6dsGxhZ2FgraWS3T9JP4dbpxNUrpmFqqbGnoJYi08ocvJZz6SX6
+  4XLVolocoaelaDcNjuGJPHDaNNxp9aVv0fgNwh5SpO55LdYRYoi5i0PFRjDoF3Jn
+  sKkDOMmYOfWCHknzUwepaI0ApXSlNUFMqUgk1/Gey62slihqJmTd4CZSk9g1QPRl
+  r6Zwf2XN9Rt8CBtbE7m/Tehz30O/raBzZ0oeVq6EOieRgfUxuZ94N4vlIW6U2Xji
+  PvujJVLQ6u96RF1I0rFh6D2u5IclMnutlPSN9OpC2XW73/2/5rxyTten/diNUrUN
+  acCdJbXI1zC0bBR95WHYcotO8dnFp72Wmi0Yk1E=
+  -----END CERTIFICATE-----
+imageContentSources:
+- mirrors:
+  - registry.omera.com:8443/openshift/okd
+  source: quay.io/openshift/okd
+- mirrors:
+  - registry.omera.com:8443/openshift/okd
+  source: quay.io/openshift/okd-content
+
+
+```
+
+配置参数说明：
+
+-   baseDomain: omera.com ##配置基础域名，OpenShift 所有DNS 记录必须是此基础域名的子域，并包含集群名称
+-   compute.hyperthreading : ##表示启用同步多线程或超线程。默认启用同步多线程，可以提高机器内核的性能
+-   compute.replicas: ## 配置 Worker Node 数量，UPI模式手动创建 Worker Node，这里必须设置为 0
+-   controlPlane. replicas:: ##集群master节点数量
+-   metadata.name ##集群名称，必须与DNS 记录中指定的集群名称一致
+-   networking. clusterNetwork: ##Pod的IP地址池配置，不能与物理网络冲突
+-   networking. serviceNetwork: ##Service的IP地址池配置，不能与物理网络冲突
+-   platform: ##平台类型 ，使用裸机安装类别，配置为none
+-   pullSecret: ‘text’ ##这里的text即上文中registry登录密钥格式中的内容
+-   sshKey: ‘text’ ##这里的text即上文中远程登录rsa公钥获取中的内容
+-   additionalTrustBundle: ## 镜像仓库CA证书，注意缩进两个空格
+-   imageContentSources: ##指定自建registry仓库地址
+
+## 创建k8s清单和ignition配置文件
+
+1、创建安装目录并复制配置文件
+
+```bash
+mkdir -p /opt/openshift/
+cp /opt/okd-install/4.10.0/install-config.yaml /opt/openshift/
+```
+
+2、切换到包含 OKD 安装程序目录，并为集群生成 Kubernetes 清单
+
+```bash
+cd /opt/openshift/
+openshift-install create manifests --dir=/opt/openshift
+```
+
+3、修改 manifests/cluster-scheduler-02-config.yml 文件，将`mastersSchedulable`的值设为`flase`，以防止将 Pod 调度到 Master Node，如果仅安装三节点集群，可以跳过以下步骤以允许控制平面节点可调度。
+
+```bash
+sed -i 's/mastersSchedulable: true/mastersSchedulable: False/' /opt/openshift/manifests/cluster-scheduler-02-config.yml
+```
+
+4、创建 Ignition 配置文件，OKD 安装程序生成的 Ignition 配置文件包含 24 小时后过期的证书，建议在证书过期之前完成集群安装，避免安装失败。
+
+```bash=
+cp /opt/okd-install/4.10.0/install-config.yaml /opt/openshift/
+
+```
+openshift-install create ignition-configs --dir=/opt/openshift
+```
+
+查看生成的相关配置文件
+
+```bash
+root@bastion:/opt/openshift# tree
+.
+├── auth
+│   ├── kubeadmin-password
+│   └── kubeconfig
+├── bootstrap.ign
+├── master.ign
+├── metadata.json
+└── worker.ign
+```
+
+复制点火配置文件到nginx目录
+
+```bash
+cp /opt/openshift/*.ign /usr/share/nginx/html/ignition
+chmod -R a+rwx /usr/share/nginx/html/ignition
+```
+
+配置bastion节点使用oc和kubectl命令，每次在bastion更新新版本oc时，以及install新的ign点火文件后，都需要更新这个目录，确保kube的正常使用。
+
+```bash
+mkdir -p /root/.kube
+cp /opt/openshift/auth/kubeconfig ~/.kube/config
+```
+
+如果后续部署失败，需要清理bastion节点以下内容，重新执行上面步骤后再进行引导部署：
+
+```bash
+rm -rf /opt/openshift/*
+rm -f /orpt/openshift/.openshift_install*
+rm -rf /usr/share/nginx/html/ignition/*
+rm -rf ~/.kube/config
+```
+
+## 下载CoresOS引导ISO
+
+使用UPI方式部署可以选择两种引导模式，本次使用方式1，手动引导：
+
+-   方式1：基于fedora-coreos-live.iso引导的方法，这种方法不是官方推荐的生产部署方法
+-   方式2：大规模安装官方推荐基于pxe的自动化安装，如果要采用pxe的自动化安装方法，就需要大量的DNS反向解析条目和DHCP，来帮助集群自动识别和修改主机名
+
+1、下载fedora-coreos镜像到nginx目录，下载地址：[https://getfedora.org/coreos/download/](https://getfedora.org/coreos/download/)
+
+```bash
+cd /usr/share/nginx/html/install
+wget https://builds.coreos.fedoraproject.org/prod/streams/stable/builds/35.20220313.3.1/x86_64/fedora-coreos-35.20220313.3.1-metal.x86_64.raw.xz
+wget https://builds.coreos.fedoraproject.org/prod/streams/stable/builds/35.20220313.3.1/x86_64/fedora-coreos-35.20220313.3.1-metal.x86_64.raw.xz.sig
+
+mv fedora-coreos-35.20220313.3.1-metal.x86_64.raw.xz fcos.raw.xz
+mv fedora-coreos-35.20220313.3.1-metal.x86_64.raw.xz.sig fcos.raw.xz.sig
+chmod -R a+rwx /usr/share/nginx/html/install
+```
+
+raw.xz是coreos安装包，raw.xz.sig是校验文件，安装的时候必须和raw.xz放在同一个http目录底下。
+
+2、下载Fedora coreos livecd iso
+
+```bash
+wget https://builds.coreos.fedoraproject.org/prod/streams/stable/builds/35.20220313.3.1/x86_64/fedora-coreos-35.20220313.3.1-live.x86_64.iso
+```
+
+将fedora-coreos-iso制作成启动U盘，或配置到虚拟机中的DVD引导选项，本次部署基于Proxmox环境，因此下载ISO后需要上传都数据存储中：  
+
+![](https://i.imgur.com/Tr6gaVI.png)
+
+
+3、开始创建虚拟机，需要1个bootstrap节点，3个master节点及3个worker节点，以bootstrap节点为例，选择客户机操作系统类型为Fedora  
+![](https://i.imgur.com/8flgc4f.png)206
+4、配置虚拟光驱挂载iso镜像为fedora-coreos，所有节点创建完成后暂不需要启动  
+![](https://i.imgur.com/jhpXY9d.png)
+
+
+## 引导boostrap节点
+
+开始启动boostrap节点，看到启动画面后快速按下 tab 键，进入 Kernel 参数配置页面，填写引导信息。
+
+备注：vmware workstation支持对接vcenter并管理其中的虚拟机，vmware workstation编辑选项中支持粘贴文本功能，可以省略手动输入的繁琐操作。
+
+```bash
+ip=10.10.20.206::10.10.20.1:255.255.255.0:bootstrap.okd4.omera.com:ens18:none nameserver=10.10.20.204 coreos.inst.install_dev=/dev/sda coreos.inst.image_url=http://10.10.20.204:8088/install/fcos.raw.xz coreos.inst.ignition_url=http://10.10.20.204:8088/ignition/bootstrap.ign
+```
+
+![](https://i.imgur.com/oJb9Saw.png)
+
+参数说明：
+
+-   ip=本机ip地址：：网关地址：子网掩码：本机主机名：网卡名：none
+-   nameserver=dns地址
+-   coreos.inst.install_dev=/dev/sda
+-   coreos.inst.image_url=coreos.raw.xz的http访问地址
+-   coreos.inst.ignition_url=bootstrap.ign的http访问地址
+
+最终效果如下，确认无误后回车开始启动bootstrap节点：  
+![在这里插入图片描述](https://img-blog.csdnimg.cn/99ed9670589942539c5835956eda73c0.png?x-oss-process=image/watermark,type_d3F5LXplbmhlaQ,shadow_50,text_Q1NETiBAd2lsbGJsb2c=,size_20,color_FFFFFF,t_70,g_se,x_16)  
+查看bootstrap引导日志
+
+```bash
+root@bastion:~# openshift-install --dir=/opt/openshift wait-for bootstrap-complete --log-level=debug
+DEBUG OpenShift Installer 4.10.0-0.okd-2022-03-07-131213 
+......
+```
+
+从bastion节点SSH连接到bootstrap节点
+
+```bash
+root@bastion:~# ssh -i ~/.ssh/id_rsa core@bootstrap.okd4.omera.com
+[core@bootstarp ~]$ sudo -i
+```
+
+查看bootstrap服务运行日志
+
+```bash
+[root@bootstrap ~]# journalctl -b -f -u release-image.service -u bootkube.service
+```
+
+等待一段时间查看运行以下容器，并处于Running状态，说明bootstrap节点已经就绪，等待下一阶段引导master节点
+
+```bash
+[root@bootstrap ~]# crictl ps
+CONTAINER           IMAGE                                                                                           CREATED             STATE               NAME                             ATTEMPT             POD ID
+6d6934f426cea       57cb23b4dd54b86edec76c373b275d336d22752d2269d438bd96fbb1676641bc                                10 minutes ago      Running             kube-controller-manager          2                   d6574a4a417e4
+e2bd2c3e23c54       57cb23b4dd54b86edec76c373b275d336d22752d2269d438bd96fbb1676641bc                                10 minutes ago      Running             kube-scheduler                   2                   da8455e61b32d
+92f06a438fc25       2dcba596e247eb8940ba59e48dd079facb3a17beae00b3a7b1b75acb1c782048                                10 minutes ago      Running             kube-apiserver-insecure-readyz   18                  d47dd0ff6e586
+b066e0b17df23       57cb23b4dd54b86edec76c373b275d336d22752d2269d438bd96fbb1676641bc                                10 minutes ago      Running             kube-apiserver                   18                  d47dd0ff6e586
+7ab95cc1d0ed8       quay.io/openshift/okd@sha256:2eee0db9818e22deb4fa99737eb87d6e9afcf68b4e455f42bdc3424c0b0d0896   11 minutes ago      Running             cluster-version-operator         1                   a63ac0c9a1e72
+f4443fc71a580       ae99f186ae09868748a605e0e5cc1bee0daf931a4b072aafd55faa4bc0d918df                                11 minutes ago      Running             cluster-policy-controller        1                   d6574a4a417e4
+75dfba68b1c74       194a3e4cff36cd53d443e209ca379da2017766e6c8d676ead8e232c4361a41ed                                11 minutes ago      Running             cloud-credential-operator        1                   03305d772455d
+ea634f3723b20       f4c2fcf0b6e255c7b96298ca39b3c08f60d3fef095a1b88ffaa9495b8b301f13                                6 hours ago         Running             machine-config-server            0                   1dbe3ff66be8a
+ad902a32559ec       4e1485364a88b0d4dab5949b0330936aa9863fe5f7aa77917e85f72be6cea3ad                                6 hours ago         Running             etcd                             0                   af73d75d8da46
+6cce15d64f5fb       4e1485364a88b0d4dab5949b0330936aa9863fe5f7aa77917e85f72be6cea3ad                                6 hours ago         Running             etcdctl                          0                   af73d75d8da46
+```
+
+## 引导启动Master节点
+
+同样的，从fedora-coreos-live.iso引导启动3个master节点，按tab键进入内核参数配置界面，输入以下内容，注意修改ignition_url，改为使用master.ign点火文件：
+
+master0引导配置：
+
+```bash
+ip=10.10.20.207::10.10.20.1:255.255.255.0:master0.okd4.omera.com:ens18:none nameserver=10.10.20.204 coreos.inst.install_dev=/dev/sda coreos.inst.image_url=http://10.10.20.204:8088/install/fcos.raw.xz coreos.inst.ignition_url=http://10.10.20.204:8088/ignition/master.ign
+```
+![](https://i.imgur.com/xWYm41X.png)
+
+master1引导配置：
+
+```bash
+ip=10.10.20.208::10.10.20.1:255.255.255.0:master1.okd4.omera.com:ens18:none nameserver=10.10.20.204 coreos.inst.install_dev=/dev/sda coreos.inst.image_url=http://10.10.20.204:8088/install/fcos.raw.xz coreos.inst.ignition_url=http://10.10.20.204:8088/ignition/master.ign
+```
+![](https://i.imgur.com/2GbaWXu.png)
+
+
+master2引导配置：
+
+```bash
+ip=10.10.20.209::10.10.20.1:255.255.255.0:master2.okd4.omera.com:ens18:none nameserver=10.10.20.204 coreos.inst.install_dev=/dev/sda coreos.inst.image_url=http://10.10.20.204:8088/install/fcos.raw.xz coreos.inst.ignition_url=http://10.10.20.204:8088/ignition/master.ign
+```
+![](https://i.imgur.com/YygFt2a.png)
+
+
+查看bootstrap引导日志：
+
+```bash
+root@bastion:~# openshift-install --dir=/opt/openshift wait-for bootstrap-complete --log-level=debug
+DEBUG OpenShift Installer 4.10.0-0.okd-2022-03-07-131213 
+DEBUG Built from commit 3b701903d96b6375f6c3852a02b4b70fea01d694 
+INFO Waiting up to 20m0s (until 1:08PM) for the Kubernetes API at https://api.okd4.omera.com:6443... 
+INFO API v1.23.3-2003+e419edff267ffa-dirty up     
+INFO Waiting up to 30m0s (until 1:18PM) for bootstrapping to complete... 
+DEBUG Bootstrap status: complete                   
+INFO It is now safe to remove the bootstrap resources 
+INFO Time elapsed: 0s   
+```
+
+登录bootstrap节点查看bootstrap服务运行日志，bootstrap完成master引导后提示可以安全删除bootstrap节点，后续不再需要bootstrap参与，下一阶段手动加入worker节点。
+
+```bash
+[root@bootstrap ~]# journalctl -b -f -u bootkube.service
+......
+Apr 05 04:41:26 bootstrap.okd4.omera.com wait-for-ceo[10441]: I0405 04:41:26.409405       1 waitforceo.go:64] Cluster etcd operator bootstrapped successfully
+Apr 05 04:41:26 bootstrap.okd4.omera.com bootkube.sh[10366]: I0405 04:41:26.409405       1 waitforceo.go:64] Cluster etcd operator bootstrapped successfully
+Apr 05 04:41:26 bootstrap.okd4.omera.com wait-for-ceo[10441]: I0405 04:41:26.410461       1 waitforceo.go:58] cluster-etcd-operator bootstrap etcd
+Apr 05 04:41:26 bootstrap.okd4.omera.com bootkube.sh[10366]: I0405 04:41:26.410461       1 waitforceo.go:58] cluster-etcd-operator bootstrap etcd
+Apr 05 04:41:26 bootstrap.okd4.omera.com podman[10366]: 2022-04-05 04:41:26.442815213 +0000 UTC m=+0.510491821 container died 6efbafe4f46b53e24cb6f387606d48e61ec2799ecff31a9ff7d2237590be4299 (image=quay.io/openshift/okd-content@sha256:95b40765f68115a467555be8dfe7a59242883c1d6f1430dfbbf9f7cf0d4a464c, name=wait-for-ceo)
+Apr 05 04:41:26 bootstrap.okd4.omera.com bootkube.sh[6969]: bootkube.service complete
+Apr 05 04:41:26 bootstrap.okd4.omera.com podman[10453]: 2022-04-05 04:41:26.541427752 +0000 UTC m=+0.111583623 container cleanup 6efbafe4f46b53e24cb6f387606d48e61ec2799ecff31a9ff7d2237590be4299 (image=quay.io/openshift/okd-content@sha256:95b40765f68115a467555be8dfe7a59242883c1d6f1430dfbbf9f7cf0d4a464c, name=wait-for-ceo, vcs-ref=9619a078840a25e131ac0dcee19fc3602e47e271, io.openshift.build.commit.ref=release-4.10, io.k8s.description=ART equivalent image openshift-4.10-openshift-enterprise-base - rhel-8/base-repos, io.openshift.build.namespace=, io.openshift.build.commit.author=, url=https://access.redhat.com/containers/#/registry.access.redhat.com/openshift/ose-base/images/v4.10.0-202202160023.p0.g544601e.assembly.stream, vcs-type=git, io.k8s.display-name=4.10-base, io.openshift.release.operator=true, io.openshift.build.commit.url=https://github.com/openshift/images/commit/544601e82413bc549bfe2eb8b54a7ff9f8c7c42e, io.openshift.maintainer.component=Release, description=This is the base image from which all OpenShift Container Platform images inherit., vendor=Red Hat, Inc., architecture=x86_64, io.openshift.build.commit.message=, io.openshift.expose-services=, io.openshift.build.commit.id=9619a078840a25e131ac0dcee19fc3602e47e271, name=openshift/ose-base, License=GPLv2+, io.openshift.tags=openshift,base, summary=Provides the latest release of Red Hat Universal Base Image 8., build-date=2022-02-16T05:12:16.796162, com.redhat.license_terms=https://www.redhat.com/agreements, io.openshift.build.name=, io.buildah.version=1.22.3, com.redhat.build-host=cpt-1006.osbs.prod.upshift.rdu2.redhat.com, release=202202160023.p0.g544601e.assembly.stream, maintainer=Red Hat, Inc., io.openshift.build.source-context-dir=, io.openshift.maintainer.product=OpenShift Container Platform, version=v4.10.0, io.openshift.ci.from.base=sha256:cf46506104eadcdfd9cb7f7113840fca2a52f4b97c5085048cb118dfc611a594, distribution-scope=public, io.openshift.build.commit.date=, vcs-url=https://github.com/openshift/cluster-etcd-operator, com.redhat.component=openshift-enterprise-base-container, io.openshift.build.source-location=https://github.com/openshift/cluster-etcd-operator)
+Apr 05 04:41:26 bootstrap.okd4.omera.com systemd[1]: bootkube.service: Deactivated successfully.
+Apr 05 04:41:26 bootstrap.okd4.omera.com systemd[1]: bootkube.service: Consumed 6.508s CPU time.
+```
+
+在bastion节点查看所有master节点是否正常启动
+
+```bash
+root@bastion:~# oc get nodes
+NAME                       STATUS   ROLES    AGE   VERSION
+master0.okd4.omera.com   Ready    master   18m   v1.23.3+759c22b
+master1.okd4.omera.com   Ready    master   16m   v1.23.3+759c22b
+master2.okd4.omera.com   Ready    master   10m   v1.23.3+759c22b
+```
+
+## 引导启动worker节点
+
+master节点就绪后，可以开始从fedora-coreos-live.iso引导启动2个worker节点，按tab键进入内核参数配置界面，输入以下内容，注意修改ignition_url，改为使用worker.ign点火文件：
+
+worker0引导配置：
+
+```bash
+ip=10.10.20.210::10.10.20.1:255.255.255.0:worker0.okd4.omera.com:ens18:none nameserver=10.10.20.204 coreos.inst.install_dev=/dev/sda coreos.inst.image_url=http://10.10.20.204:8088/install/fcos.raw.xz coreos.inst.ignition_url=http://10.10.20.204:8088/ignition/worker.ign
+```
+![](https://i.imgur.com/Y9wakeo.png)
+
+
+worker1引导配置：
+
+```bash
+ip=10.10.20.211::10.10.20.1:255.255.255.0:worker1.okd4.omera.com:ens18:none nameserver=10.10.20.204 coreos.inst.install_dev=/dev/sda coreos.inst.image_url=http://10.10.20.204:8088/install/fcos.raw.xz coreos.inst.ignition_url=http://10.10.20.204:8088/ignition/worker.ign
+```
+![](https://i.imgur.com/6cTWRf7.png)
+
+worker2引导配置：
+
+```bash
+ip=10.10.20.212::10.10.20.1:255.255.255.0:worker2.okd4.omera.com:ens18:none nameserver=10.10.20.204 coreos.inst.install_dev=/dev/sda coreos.inst.image_url=http://10.10.20.204:8088/install/fcos.raw.xz coreos.inst.ignition_url=http://10.10.20.204:8088/ignition/worker.ign
+```
+![](https://i.imgur.com/RFVPvDo.png)
+
+
+查看VNC启动界面，等待worker完全启动。
+
+## 批准机器的证书签名请求
+
+将机器添加到集群时，会为添加的每台机器生成两个待处理的证书签名请求 (CSR)。必须确认这些 CSR 已获得批准，或在必要时自行批准。必须首先批准客户端请求，然后是服务器请求。
+
+在某些 CSR 获得批准之前，前面的输出可能不包括计算节点，也称为工作节点。
+
+```bash
+root@bastion:~# oc get nodes
+NAME                       STATUS   ROLES           AGE     VERSION
+master0.okd4.omera.com   Ready    master,worker   33m     v1.23.3+759c22b
+master1.okd4.omera.com   Ready    master,worker   32m     v1.23.3+759c22b
+master2.okd4.omera.com   Ready    master,worker   3m19s   v1.23.3+759c22b
+```
+
+查看待处理的 CSR，并确保看到添加到集群的每台机器的客户端请求为`Pending`或状态
+
+```bash
+root@bastion:~# oc get csr
+NAME                                             AGE     SIGNERNAME                                    REQUESTOR                                                                         REQUESTEDDURATION   CONDITION
+csr-5mklm                                        33m     kubernetes.io/kube-apiserver-client-kubelet   system:serviceaccount:openshift-machine-config-operator:node-bootstrapper         <none>              Approved,Issued
+csr-9dh5q                                        33m     kubernetes.io/kube-apiserver-client-kubelet   system:serviceaccount:openshift-machine-config-operator:node-bootstrapper         <none>              Approved,Issued
+csr-bdmjm                                        28m     kubernetes.io/kube-apiserver-client-kubelet   system:serviceaccount:openshift-machine-config-operator:node-bootstrapper         <none>              Approved,Issued
+csr-bsdwv                                        35m     kubernetes.io/kubelet-serving                 system:node:master0.okd4.omera.com                                              <none>              Approved,Issued
+csr-ddgpl                                        113s    kubernetes.io/kube-apiserver-client-kubelet   system:serviceaccount:openshift-machine-config-operator:node-bootstrapper         <none>              Pending
+csr-ld97n                                        36m     kubernetes.io/kube-apiserver-client-kubelet   system:serviceaccount:openshift-machine-config-operator:node-bootstrapper         <none>              Approved,Issued
+csr-nbqqm                                        27m     kubernetes.io/kubelet-serving                 system:node:master2.okd4.omera.com                                              <none>              Approved,Issued
+csr-nrd89                                        2m32s   kubernetes.io/kube-apiserver-client-kubelet   system:serviceaccount:openshift-machine-config-operator:node-bootstrapper         <none>              Pending
+csr-qnv96                                        33m     kubernetes.io/kubelet-serving                 system:node:master1.okd4.omera.com                                              <none>              Approved,Issued
+csr-slqcv                                        97s     kubernetes.io/kube-apiserver-client-kubelet   system:serviceaccount:openshift-machine-config-operator:node-bootstrapper         <none>              Pending
+csr-tccqf                                        36m     kubernetes.io/kube-apiserver-client-kubelet   system:serviceaccount:openshift-machine-config-operator:node-bootstrapper         <none>              Approved,Issued
+csr-vp8j5                                        28m     kubernetes.io/kube-apiserver-client-kubelet   system:serviceaccount:openshift-machine-config-operator:node-bootstrapper         <none>              Approved,Issued
+csr-wbhdk                                        2m16s   kubernetes.io/kube-apiserver-client-kubelet   system:serviceaccount:openshift-machine-config-operator:node-bootstrapper         <none>              Pending
+system:openshift:openshift-authenticator-48cmp   27m     kubernetes.io/kube-apiserver-client           system:serviceaccount:openshift-authentication-operator:authentication-operator   <none>              Approved,Issued
+system:openshift:openshift-monitoring-x6l9v      24m     kubernetes.io/kube-apiserver-client           system:serviceaccount:openshift-monitoring:cluster-monitoring-operator            <none>              Approved,Issued
+```
+
+在此示例中，两台机器正在加入集群。可能会在列表中看到更多已批准的 CSR。如果 CSR 未获批准，则在添加的机器的所有待处理 CSR 都处于`Pending`状态后，批准集群机器的 CSR：
+
+```bash
+oc get csr -o go-template='{{range .items}}{{if not .status}}{{.metadata.name}}{{"\n"}}{{end}}{{end}}' | xargs --no-run-if-empty oc adm certificate approve
+```
+
+输出结果如下
+
+```bash
+certificatesigningrequest.certificates.k8s.io/csr-ddgpl approved
+certificatesigningrequest.certificates.k8s.io/csr-nrd89 approved
+certificatesigningrequest.certificates.k8s.io/csr-slqcv approved
+certificatesigningrequest.certificates.k8s.io/csr-wbhdk approved
+```
+
+查看节点状态，等待片刻两个新的worker节点处于Ready状态
+
+```bash
+root@bastion:~# oc get nodes
+NAME                       STATUS   ROLES    AGE     VERSION
+master0.okd4.omera.com   Ready    master   40m     v1.23.3+759c22b
+master1.okd4.omera.com   Ready    master   37m     v1.23.3+759c22b
+master2.okd4.omera.com   Ready    master   31m     v1.23.3+759c22b
+worker0.okd4.omera.com   Ready    worker   2m57s   v1.23.3+759c22b
+worker1.okd4.omera.com   Ready    worker   3m      v1.23.3+759c22b
+```
+
+此时两个worker节点CSR处于Pending状态，运行以下命令，再次批准所有待处理的 CSR：
+
+```bash
+oc get csr -o go-template='{{range .items}}{{if not .status}}{{.metadata.name}}{{"\n"}}{{end}}{{end}}' | xargs oc adm certificate approve
+```
+
+确认所有客户端和服务器 CSR 都已获得批准：
+
+```bash
+root@bastion:~# oc get csr
+NAME                                             AGE     SIGNERNAME                                    REQUESTOR                                                                         REQUESTEDDURATION   CONDITION
+csr-5mklm                                        39m     kubernetes.io/kube-apiserver-client-kubelet   system:serviceaccount:openshift-machine-config-operator:node-bootstrapper         <none>              Approved,Issued
+csr-9dh5q                                        39m     kubernetes.io/kube-apiserver-client-kubelet   system:serviceaccount:openshift-machine-config-operator:node-bootstrapper         <none>              Approved,Issued
+csr-bdmjm                                        34m     kubernetes.io/kube-apiserver-client-kubelet   system:serviceaccount:openshift-machine-config-operator:node-bootstrapper         <none>              Approved,Issued
+csr-bsdwv                                        41m     kubernetes.io/kubelet-serving                 system:node:master0.okd4.omera.com                                              <none>              Approved,Issued
+csr-c6kjg                                        4m50s   kubernetes.io/kubelet-serving                 system:node:worker1.okd4.omera.com                                              <none>              Approved,Issued
+csr-ddgpl                                        7m51s   kubernetes.io/kube-apiserver-client-kubelet   system:serviceaccount:openshift-machine-config-operator:node-bootstrapper         <none>              Approved,Issued
+csr-hxjck                                        4m47s   kubernetes.io/kubelet-serving                 system:node:worker0.okd4.omera.com                                              <none>              Approved,Issued
+csr-ld97n                                        42m     kubernetes.io/kube-apiserver-client-kubelet   system:serviceaccount:openshift-machine-config-operator:node-bootstrapper         <none>              Approved,Issued
+csr-nbqqm                                        33m     kubernetes.io/kubelet-serving                 system:node:master2.okd4.omera.com                                              <none>              Approved,Issued
+csr-nrd89                                        8m30s   kubernetes.io/kube-apiserver-client-kubelet   system:serviceaccount:openshift-machine-config-operator:node-bootstrapper         <none>              Approved,Issued
+csr-qnv96                                        39m     kubernetes.io/kubelet-serving                 system:node:master1.okd4.omera.com                                              <none>              Approved,Issued
+csr-slqcv                                        7m35s   kubernetes.io/kube-apiserver-client-kubelet   system:serviceaccount:openshift-machine-config-operator:node-bootstrapper         <none>              Approved,Issued
+csr-tccqf                                        42m     kubernetes.io/kube-apiserver-client-kubelet   system:serviceaccount:openshift-machine-config-operator:node-bootstrapper         <none>              Approved,Issued
+csr-vp8j5                                        34m     kubernetes.io/kube-apiserver-client-kubelet   system:serviceaccount:openshift-machine-config-operator:node-bootstrapper         <none>              Approved,Issued
+csr-wbhdk                                        8m14s   kubernetes.io/kube-apiserver-client-kubelet   system:serviceaccount:openshift-machine-config-operator:node-bootstrapper         <none>              Approved,Issued
+system:openshift:openshift-authenticator-48cmp   33m     kubernetes.io/kube-apiserver-client           system:serviceaccount:openshift-authentication-operator:authentication-operator   <none>              Approved,Issued
+system:openshift:openshift-monitoring-x6l9v      30m     kubernetes.io/kube-apiserver-client           system:serviceaccount:openshift-monitoring:cluster-monitoring-operator            <none>              Approved,Issued
+```
+
+## 清理Haproxy配置
+
+此时bootstrap节点已经可以删除，并且需要清理haproxy配置，删除以下两行内容
+
+```bash
+root@bastion:~# cat /etc/haproxy/haproxy.cfg |grep bootstrap
+    server bootstrap 10.10.20.206:6443 check 
+    server bootstrap 10.10.20.206:22623 check
+```
+
+重新加载配置
+
+```bash
+docker kill -s HUP haproxy
+```
+
+登录haproxy状态页面，默认用户名密码在haproxy.cfg配置文件中可以获取。
+
+```bash
+http://10.10.20.204:1936/stats
+```
+
+查看所有负载端口健康状态  
+![在这里插入图片描述](https://img-blog.csdnimg.cn/12b8f9ba444b41b1b1d8daa32cf04385.png?x-oss-process=image/watermark,type_d3F5LXplbmhlaQ,shadow_50,text_Q1NETiBAd2lsbGJsb2c=,size_20,color_FFFFFF,t_70,g_se,x_16)
+
+## 查看[Operator](https://so.csdn.net/so/search?q=Operator&spm=1001.2101.3001.7020)运行状态
+
+控制平面初始化后，您必须立即配置一些 Operator，以便它们都可用。列出在集群中运行的 Operator。输出包括 Operator 版本、可用性和正常运行时间信息，确认AVAILABLE列状态全部为True：
+
+```bash
+root@bastion:~# oc get clusteroperators
+NAME                                       VERSION                          AVAILABLE   PROGRESSING   DEGRADED   SINCE   MESSAGE
+authentication                             4.10.0-0.okd-2022-03-07-131213   True        False         False      26m     
+baremetal                                  4.10.0-0.okd-2022-03-07-131213   True        False         False      63m     
+cloud-controller-manager                   4.10.0-0.okd-2022-03-07-131213   True        False         False      74m     
+cloud-credential                           4.10.0-0.okd-2022-03-07-131213   True        False         False      86m     
+cluster-autoscaler                         4.10.0-0.okd-2022-03-07-131213   True        False         False      63m     
+config-operator                            4.10.0-0.okd-2022-03-07-131213   True        False         False      67m     
+console                                    4.10.0-0.okd-2022-03-07-131213   True        False         False      31m     
+csi-snapshot-controller                    4.10.0-0.okd-2022-03-07-131213   True        False         False      65m     
+dns                                        4.10.0-0.okd-2022-03-07-131213   True        False         False      63m     
+etcd                                       4.10.0-0.okd-2022-03-07-131213   True        False         False      64m     
+image-registry                             4.10.0-0.okd-2022-03-07-131213   True        False         False      57m     
+ingress                                    4.10.0-0.okd-2022-03-07-131213   True        False         False      35m     
+insights                                   4.10.0-0.okd-2022-03-07-131213   True        False         False      58m     
+kube-apiserver                             4.10.0-0.okd-2022-03-07-131213   True        False         False      61m     
+kube-controller-manager                    4.10.0-0.okd-2022-03-07-131213   True        False         False      64m     
+kube-scheduler                             4.10.0-0.okd-2022-03-07-131213   True        False         False      61m     
+kube-storage-version-migrator              4.10.0-0.okd-2022-03-07-131213   True        False         False      58m     
+machine-api                                4.10.0-0.okd-2022-03-07-131213   True        False         False      63m     
+machine-approver                           4.10.0-0.okd-2022-03-07-131213   True        False         False      66m     
+machine-config                             4.10.0-0.okd-2022-03-07-131213   True        False         False      63m     
+marketplace                                4.10.0-0.okd-2022-03-07-131213   True        False         False      63m     
+monitoring                                 4.10.0-0.okd-2022-03-07-131213   True        False         False      29m     
+network                                    4.10.0-0.okd-2022-03-07-131213   True        False         False      64m     
+node-tuning                                4.10.0-0.okd-2022-03-07-131213   True        False         False      63m     
+openshift-apiserver                        4.10.0-0.okd-2022-03-07-131213   True        False         False      58m     
+openshift-controller-manager               4.10.0-0.okd-2022-03-07-131213   True        False         False      63m     
+openshift-samples                          4.10.0-0.okd-2022-03-07-131213   True        False         False      53m     
+operator-lifecycle-manager                 4.10.0-0.okd-2022-03-07-131213   True        False         False      64m     
+operator-lifecycle-manager-catalog         4.10.0-0.okd-2022-03-07-131213   True        False         False      63m     
+operator-lifecycle-manager-packageserver   4.10.0-0.okd-2022-03-07-131213   True        False         False      58m     
+service-ca                                 4.10.0-0.okd-2022-03-07-131213   True        False         False      67m     
+storage                                    4.10.0-0.okd-2022-03-07-131213   True        False         False      67m     
+```
+
+查看所有的pod状态，确认全部为`Running`或`Completed`状态：
+
+```bash
+root@bastion:~# oc get pods -A
+NAMESPACE                                          NAME                                                        READY   STATUS      RESTARTS      AGE
+demo                                               omera-tomcat-548b6678f9-lvbsd                             1/1     Running     0             3h34m
+openshift-apiserver-operator                       openshift-apiserver-operator-fbbcfffdb-txthk                1/1     Running     1 (12h ago)   12h
+openshift-apiserver                                apiserver-76666f747-b699f                                   2/2     Running     0             12h
+openshift-apiserver                                apiserver-76666f747-f2k79                                   2/2     Running     0             12h
+openshift-apiserver                                apiserver-76666f747-jc2j9                                   2/2     Running     0             12h
+openshift-authentication-operator                  authentication-operator-56585c6d7f-zk4vx                    1/1     Running     1 (12h ago)   12h
+openshift-authentication                           oauth-openshift-69b4944495-d5g5m                            1/1     Running     0             12h
+openshift-authentication                           oauth-openshift-69b4944495-qt9dd                            1/1     Running     0             12h
+openshift-authentication                           oauth-openshift-69b4944495-zhqmw                            1/1     Running     0             12h
+openshift-cloud-controller-manager-operator        cluster-cloud-controller-manager-operator-b6ccd5ff4-nm6cz   2/2     Running     2 (12h ago)   12h
+openshift-cloud-credential-operator                cloud-credential-operator-66699d5d4c-p8rfk                  2/2     Running     0             12h
+openshift-cluster-machine-approver                 machine-approver-7f6ff596f8-rn82z                           2/2     Running     0             12h
+openshift-cluster-node-tuning-operator             cluster-node-tuning-operator-6764cd7b84-wjghr               1/1     Running     0             12h
+openshift-cluster-node-tuning-operator             tuned-25q7w                                                 1/1     Running     0             12h
+openshift-cluster-node-tuning-operator             tuned-8frvm                                                 1/1     Running     0             12h
+openshift-cluster-node-tuning-operator             tuned-bpqn6                                                 1/1     Running     0             12h
+openshift-cluster-node-tuning-operator             tuned-nzdws                                                 1/1     Running     0             12h
+openshift-cluster-node-tuning-operator             tuned-tcrkc                                                 1/1     Running     0             12h
+openshift-cluster-samples-operator                 cluster-samples-operator-5dbddd7dfc-rb2w2                   2/2     Running     0             12h
+openshift-cluster-storage-operator                 cluster-storage-operator-75d44d7bcf-x5vhq                   1/1     Running     1 (12h ago)   12h
+openshift-cluster-storage-operator                 csi-snapshot-controller-6b56df796f-wsccc                    1/1     Running     0             12h
+openshift-cluster-storage-operator                 csi-snapshot-controller-6b56df796f-x6q8f                    1/1     Running     0             12h
+openshift-cluster-storage-operator                 csi-snapshot-controller-operator-6b5776c58f-wlzb7           1/1     Running     0             12h
+openshift-cluster-storage-operator                 csi-snapshot-webhook-556df58965-7pt5w                       1/1     Running     0             12h
+openshift-cluster-storage-operator                 csi-snapshot-webhook-556df58965-gvvqv                       1/1     Running     0             12h
+openshift-cluster-version                          cluster-version-operator-6f57fcb854-r6wrm                   1/1     Running     0             12h
+openshift-config-operator                          openshift-config-operator-95d566bb9-kctj6                   1/1     Running     1 (12h ago)   12h
+openshift-console-operator                         console-operator-568fcf9d45-94nlm                           1/1     Running     0             12h
+openshift-console                                  console-76c6d59bfb-vvwhl                                    1/1     Running     1 (11h ago)   12h
+openshift-console                                  console-76c6d59bfb-zkvl4                                    1/1     Running     1 (11h ago)   12h
+openshift-console                                  downloads-58b68d9689-795l2                                  1/1     Running     0             12h
+openshift-console                                  downloads-58b68d9689-k9hr4                                  1/1     Running     0             12h
+openshift-controller-manager-operator              openshift-controller-manager-operator-d9c574d99-6r9nv       1/1     Running     1 (12h ago)   12h
+openshift-controller-manager                       controller-manager-km925                                    1/1     Running     0             122m
+openshift-controller-manager                       controller-manager-ndlmq                                    1/1     Running     0             122m
+openshift-controller-manager                       controller-manager-rjbdw                                    1/1     Running     0             122m
+openshift-dns-operator                             dns-operator-f57cc4d6f-7l64v                                2/2     Running     0             12h
+openshift-dns                                      dns-default-9wzs4                                           2/2     Running     0             12h
+openshift-dns                                      dns-default-htchk                                           2/2     Running     0             12h
+openshift-dns                                      dns-default-swtd9                                           2/2     Running     0             12h
+openshift-dns                                      dns-default-wxv99                                           2/2     Running     0             12h
+openshift-dns                                      dns-default-xhd5q                                           2/2     Running     0             12h
+openshift-dns                                      node-resolver-48mwj                                         1/1     Running     0             12h
+openshift-dns                                      node-resolver-7zpxr                                         1/1     Running     0             12h
+openshift-dns                                      node-resolver-gbrqz                                         1/1     Running     0             12h
+openshift-dns                                      node-resolver-ntlfj                                         1/1     Running     0             12h
+openshift-dns                                      node-resolver-xdcrv                                         1/1     Running     0             12h
+openshift-etcd-operator                            etcd-operator-7cdf659f76-2llmq                              1/1     Running     1 (12h ago)   12h
+openshift-etcd                                     etcd-master0.okd4.omera.com                               4/4     Running     0             12h
+openshift-etcd                                     etcd-master1.okd4.omera.com                               4/4     Running     0             12h
+openshift-etcd                                     etcd-master2.okd4.omera.com                               4/4     Running     0             12h
+openshift-etcd                                     etcd-quorum-guard-55c858456b-mvv4d                          1/1     Running     0             12h
+openshift-etcd                                     etcd-quorum-guard-55c858456b-rbxw7                          1/1     Running     0             12h
+openshift-etcd                                     etcd-quorum-guard-55c858456b-vz2p5                          1/1     Running     0             12h
+openshift-etcd                                     installer-3-master1.okd4.omera.com                        0/1     Completed   0             12h
+openshift-etcd                                     installer-5-master2.okd4.omera.com                        0/1     Completed   0             12h
+openshift-etcd                                     installer-7-master1.okd4.omera.com                        0/1     Completed   0             12h
+openshift-etcd                                     installer-7-master2.okd4.omera.com                        0/1     Completed   0             12h
+openshift-etcd                                     installer-7-retry-1-master0.okd4.omera.com                0/1     Completed   0             12h
+openshift-etcd                                     installer-8-master0.okd4.omera.com                        0/1     Completed   0             12h
+openshift-etcd                                     installer-8-master1.okd4.omera.com                        0/1     Completed   0             12h
+openshift-etcd                                     installer-8-master2.okd4.omera.com                        0/1     Completed   0             12h
+openshift-etcd                                     revision-pruner-7-master0.okd4.omera.com                  0/1     Completed   0             12h
+openshift-etcd                                     revision-pruner-7-master1.okd4.omera.com                  0/1     Completed   0             12h
+openshift-etcd                                     revision-pruner-7-master2.okd4.omera.com                  0/1     Completed   0             12h
+openshift-etcd                                     revision-pruner-8-master0.okd4.omera.com                  0/1     Completed   0             12h
+openshift-etcd                                     revision-pruner-8-master1.okd4.omera.com                  0/1     Completed   0             12h
+openshift-etcd                                     revision-pruner-8-master2.okd4.omera.com                  0/1     Completed   0             12h
+openshift-image-registry                           cluster-image-registry-operator-ddd96d697-p4fdx             1/1     Running     0             12h
+openshift-image-registry                           node-ca-7zt48                                               1/1     Running     0             12h
+openshift-image-registry                           node-ca-8fb9j                                               1/1     Running     0             12h
+openshift-image-registry                           node-ca-dtsrl                                               1/1     Running     0             12h
+openshift-image-registry                           node-ca-kn4pl                                               1/1     Running     0             12h
+openshift-image-registry                           node-ca-vt6fm                                               1/1     Running     0             12h
+openshift-ingress-canary                           ingress-canary-kr74s                                        1/1     Running     0             12h
+openshift-ingress-canary                           ingress-canary-x4ggt                                        1/1     Running     0             12h
+openshift-ingress-operator                         ingress-operator-848cb57596-hjmqz                           2/2     Running     1 (12h ago)   12h
+openshift-ingress                                  router-default-df465c48f-jvbpc                              1/1     Running     0             12h
+openshift-ingress                                  router-default-df465c48f-l982j                              1/1     Running     0             12h
+openshift-insights                                 insights-operator-6c98b65bd-frsfv                           1/1     Running     1 (12h ago)   12h
+openshift-kube-apiserver-operator                  kube-apiserver-operator-c5b54866c-892jt                     1/1     Running     1 (12h ago)   12h
+openshift-kube-apiserver                           installer-10-master0.okd4.omera.com                       0/1     Completed   0             4h10m
+openshift-kube-apiserver                           installer-10-master1.okd4.omera.com                       0/1     Completed   0             4h13m
+openshift-kube-apiserver                           installer-10-master2.okd4.omera.com                       0/1     Completed   0             4h8m
+openshift-kube-apiserver                           installer-11-master0.okd4.omera.com                       0/1     Completed   0             146m
+openshift-kube-apiserver                           installer-11-master1.okd4.omera.com                       0/1     Completed   0             149m
+openshift-kube-apiserver                           installer-11-master2.okd4.omera.com                       0/1     Completed   0             143m
+openshift-kube-apiserver                           installer-12-master0.okd4.omera.com                       0/1     Completed   0             119m
+openshift-kube-apiserver                           installer-12-master1.okd4.omera.com                       0/1     Completed   0             122m
+openshift-kube-apiserver                           installer-12-master2.okd4.omera.com                       0/1     Completed   0             116m
+openshift-kube-apiserver                           installer-13-master0.okd4.omera.com                       0/1     Completed   0             6m7s
+openshift-kube-apiserver                           installer-13-master1.okd4.omera.com                       0/1     Completed   0             9m4s
+openshift-kube-apiserver                           installer-13-master2.okd4.omera.com                       0/1     Completed   0             3m7s
+openshift-kube-apiserver                           installer-9-master0.okd4.omera.com                        0/1     Completed   0             11h
+openshift-kube-apiserver                           installer-9-master1.okd4.omera.com                        0/1     Completed   0             11h
+openshift-kube-apiserver                           installer-9-master2.okd4.omera.com                        0/1     Completed   0             11h
+openshift-kube-apiserver                           kube-apiserver-guard-master0.okd4.omera.com               1/1     Running     0             12h
+openshift-kube-apiserver                           kube-apiserver-guard-master1.okd4.omera.com               1/1     Running     0             12h
+openshift-kube-apiserver                           kube-apiserver-guard-master2.okd4.omera.com               1/1     Running     0             12h
+openshift-kube-apiserver                           kube-apiserver-master0.okd4.omera.com                     5/5     Running     0             4m7s
+openshift-kube-apiserver                           kube-apiserver-master1.okd4.omera.com                     5/5     Running     0             7m4s
+openshift-kube-apiserver                           kube-apiserver-master2.okd4.omera.com                     5/5     Running     0             68s
+openshift-kube-apiserver                           revision-pruner-10-master0.okd4.omera.com                 0/1     Completed   0             4h13m
+openshift-kube-apiserver                           revision-pruner-10-master1.okd4.omera.com                 0/1     Completed   0             4h13m
+openshift-kube-apiserver                           revision-pruner-10-master2.okd4.omera.com                 0/1     Completed   0             4h13m
+openshift-kube-apiserver                           revision-pruner-11-master0.okd4.omera.com                 0/1     Completed   0             149m
+openshift-kube-apiserver                           revision-pruner-11-master1.okd4.omera.com                 0/1     Completed   0             149m
+openshift-kube-apiserver                           revision-pruner-11-master2.okd4.omera.com                 0/1     Completed   0             149m
+openshift-kube-apiserver                           revision-pruner-12-master0.okd4.omera.com                 0/1     Completed   0             122m
+openshift-kube-apiserver                           revision-pruner-12-master1.okd4.omera.com                 0/1     Completed   0             123m
+openshift-kube-apiserver                           revision-pruner-12-master2.okd4.omera.com                 0/1     Completed   0             122m
+openshift-kube-apiserver                           revision-pruner-13-master0.okd4.omera.com                 0/1     Completed   0             9m18s
+openshift-kube-apiserver                           revision-pruner-13-master1.okd4.omera.com                 0/1     Completed   0             9m20s
+openshift-kube-apiserver                           revision-pruner-13-master2.okd4.omera.com                 0/1     Completed   0             9m15s
+openshift-kube-apiserver                           revision-pruner-9-master0.okd4.omera.com                  0/1     Completed   0             12h
+openshift-kube-apiserver                           revision-pruner-9-master1.okd4.omera.com                  0/1     Completed   0             12h
+openshift-kube-apiserver                           revision-pruner-9-master2.okd4.omera.com                  0/1     Completed   0             12h
+openshift-kube-controller-manager-operator         kube-controller-manager-operator-57bc446b77-mfkwt           1/1     Running     1 (12h ago)   12h
+openshift-kube-controller-manager                  installer-3-master0.okd4.omera.com                        0/1     Completed   0             12h
+openshift-kube-controller-manager                  installer-5-master1.okd4.omera.com                        0/1     Completed   0             12h
+openshift-kube-controller-manager                  installer-5-master2.okd4.omera.com                        0/1     Completed   0             12h
+openshift-kube-controller-manager                  installer-6-master0.okd4.omera.com                        0/1     Completed   0             12h
+openshift-kube-controller-manager                  installer-6-master1.okd4.omera.com                        0/1     Completed   0             12h
+openshift-kube-controller-manager                  installer-6-master2.okd4.omera.com                        0/1     Completed   0             12h
+openshift-kube-controller-manager                  installer-7-master0.okd4.omera.com                        0/1     Completed   0             12h
+openshift-kube-controller-manager                  installer-7-master1.okd4.omera.com                        0/1     Completed   0             12h
+openshift-kube-controller-manager                  installer-7-master2.okd4.omera.com                        0/1     Completed   0             12h
+openshift-kube-controller-manager                  kube-controller-manager-guard-master0.okd4.omera.com      1/1     Running     0             12h
+openshift-kube-controller-manager                  kube-controller-manager-guard-master1.okd4.omera.com      1/1     Running     0             12h
+openshift-kube-controller-manager                  kube-controller-manager-guard-master2.okd4.omera.com      1/1     Running     0             12h
+openshift-kube-controller-manager                  kube-controller-manager-master0.okd4.omera.com            4/4     Running     0             12h
+openshift-kube-controller-manager                  kube-controller-manager-master1.okd4.omera.com            4/4     Running     0             12h
+openshift-kube-controller-manager                  kube-controller-manager-master2.okd4.omera.com            4/4     Running     0             12h
+openshift-kube-controller-manager                  revision-pruner-6-master0.okd4.omera.com                  0/1     Completed   0             12h
+openshift-kube-controller-manager                  revision-pruner-6-master1.okd4.omera.com                  0/1     Completed   0             12h
+openshift-kube-controller-manager                  revision-pruner-6-master2.okd4.omera.com                  0/1     Completed   0             12h
+openshift-kube-controller-manager                  revision-pruner-7-master0.okd4.omera.com                  0/1     Completed   0             12h
+openshift-kube-controller-manager                  revision-pruner-7-master1.okd4.omera.com                  0/1     Completed   0             12h
+openshift-kube-controller-manager                  revision-pruner-7-master2.okd4.omera.com                  0/1     Completed   0             12h
+openshift-kube-scheduler-operator                  openshift-kube-scheduler-operator-67cbb8d86f-nqbnd          1/1     Running     1 (12h ago)   12h
+openshift-kube-scheduler                           installer-4-master0.okd4.omera.com                        0/1     Completed   0             12h
+openshift-kube-scheduler                           installer-5-master0.okd4.omera.com                        0/1     Completed   0             12h
+openshift-kube-scheduler                           installer-6-master0.okd4.omera.com                        0/1     Completed   0             12h
+openshift-kube-scheduler                           installer-6-master1.okd4.omera.com                        0/1     Completed   0             12h
+openshift-kube-scheduler                           installer-7-master0.okd4.omera.com                        0/1     Completed   0             12h
+openshift-kube-scheduler                           installer-7-master1.okd4.omera.com                        0/1     Completed   0             12h
+openshift-kube-scheduler                           installer-7-master2.okd4.omera.com                        0/1     Completed   0             12h
+openshift-kube-scheduler                           openshift-kube-scheduler-guard-master0.okd4.omera.com     1/1     Running     0             12h
+openshift-kube-scheduler                           openshift-kube-scheduler-guard-master1.okd4.omera.com     1/1     Running     0             12h
+openshift-kube-scheduler                           openshift-kube-scheduler-guard-master2.okd4.omera.com     1/1     Running     0             12h
+openshift-kube-scheduler                           openshift-kube-scheduler-master0.okd4.omera.com           3/3     Running     0             12h
+openshift-kube-scheduler                           openshift-kube-scheduler-master1.okd4.omera.com           3/3     Running     0             12h
+openshift-kube-scheduler                           openshift-kube-scheduler-master2.okd4.omera.com           3/3     Running     0             12h
+openshift-kube-scheduler                           revision-pruner-6-master0.okd4.omera.com                  0/1     Completed   0             12h
+openshift-kube-scheduler                           revision-pruner-6-master1.okd4.omera.com                  0/1     Completed   0             12h
+openshift-kube-scheduler                           revision-pruner-6-master2.okd4.omera.com                  0/1     Completed   0             12h
+openshift-kube-scheduler                           revision-pruner-7-master0.okd4.omera.com                  0/1     Completed   0             12h
+openshift-kube-scheduler                           revision-pruner-7-master1.okd4.omera.com                  0/1     Completed   0             12h
+openshift-kube-scheduler                           revision-pruner-7-master2.okd4.omera.com                  0/1     Completed   0             12h
+openshift-kube-storage-version-migrator-operator   kube-storage-version-migrator-operator-85c88fcbcd-b24q5     1/1     Running     1 (12h ago)   12h
+openshift-kube-storage-version-migrator            migrator-85976b4574-b2v8q                                   1/1     Running     0             12h
+openshift-machine-api                              cluster-autoscaler-operator-6c6ffd9948-f7h62                2/2     Running     0             12h
+openshift-machine-api                              cluster-baremetal-operator-76fd6798b6-hpsgr                 2/2     Running     0             12h
+openshift-machine-api                              machine-api-operator-74f4fbdcc9-vfft6                       2/2     Running     0             12h
+openshift-machine-config-operator                  machine-config-controller-bbc954c9c-spsnj                   1/1     Running     0             12h
+openshift-machine-config-operator                  machine-config-daemon-dzz9t                                 2/2     Running     0             12h
+openshift-machine-config-operator                  machine-config-daemon-j5lvj                                 2/2     Running     0             12h
+openshift-machine-config-operator                  machine-config-daemon-nkm9p                                 2/2     Running     0             12h
+openshift-machine-config-operator                  machine-config-daemon-pbxbh                                 2/2     Running     0             12h
+openshift-machine-config-operator                  machine-config-daemon-r4cml                                 2/2     Running     0             12h
+openshift-machine-config-operator                  machine-config-operator-9c6d9dd78-q55n9                     1/1     Running     0             12h
+openshift-machine-config-operator                  machine-config-server-29slp                                 1/1     Running     0             12h
+openshift-machine-config-operator                  machine-config-server-ps4zb                                 1/1     Running     0             12h
+openshift-machine-config-operator                  machine-config-server-wt7kv                                 1/1     Running     0             12h
+openshift-marketplace                              community-operators-z789f                                   1/1     Running     0             5m35s
+openshift-marketplace                              marketplace-operator-7d44654db-xdcl8                        1/1     Running     1 (12h ago)   12h
+openshift-monitoring                               alertmanager-main-0                                         6/6     Running     0             11h
+openshift-monitoring                               alertmanager-main-1                                         6/6     Running     0             11h
+openshift-monitoring                               cluster-monitoring-operator-7f57cd7fb-z4dwd                 2/2     Running     0             12h
+openshift-monitoring                               grafana-6cd855f567-thstn                                    3/3     Running     0             12h
+openshift-monitoring                               kube-state-metrics-7dd5fcf48b-dbrxt                         3/3     Running     0             12h
+openshift-monitoring                               node-exporter-2xcfq                                         2/2     Running     0             12h
+openshift-monitoring                               node-exporter-gzckr                                         2/2     Running     0             12h
+openshift-monitoring                               node-exporter-js44v                                         2/2     Running     0             12h
+openshift-monitoring                               node-exporter-kxcbk                                         2/2     Running     0             12h
+openshift-monitoring                               node-exporter-zv4k6                                         2/2     Running     0             12h
+openshift-monitoring                               openshift-state-metrics-57c84995c9-wmt7h                    3/3     Running     0             12h
+openshift-monitoring                               prometheus-adapter-667f7b6644-5w9gd                         1/1     Running     0             123m
+openshift-monitoring                               prometheus-adapter-667f7b6644-8std4                         1/1     Running     0             123m
+openshift-monitoring                               prometheus-k8s-0                                            6/6     Running     0             12h
+openshift-monitoring                               prometheus-k8s-1                                            6/6     Running     0             12h
+openshift-monitoring                               prometheus-operator-674f47f9f6-h6dwf                        2/2     Running     0             12h
+openshift-monitoring                               telemeter-client-78dcb6486c-bqmgc                           3/3  
