@@ -5,57 +5,20 @@ Hello Techies, as you know Openshift provides container platform and can install
 In this post, we will demonstrate how to install Openshift 4.9 on bare metal nodes with UPI approach.
 For the demonstration purpose, I am using KVM virtual machines. Following are my lab setup details,
 Total Virtual Machines: 7
-
 Bastion Node:  
--   OS – Rocky Linux 8 / CentOS 8,
--   RAM- 4GB, vPCU-4,
--   Disk- 120 GB
 -   Network: Management N/w – (169.144.104.228), ocp internal n/w – (192.168.110.115)
-
 Bootstrap Node:
--   OS : Core OS
--   RAM : 8GB
--   vCPU: 4
--   Disk: 40 GB
 -   Network: OCP Internal Network (192.168.110.116)
-
 Control Plane 1 Node:
--   OS : Core OS
--   RAM : 10GB
--   vCPU: 6
--   Disk: 60 GB
 -   Network: OCP Internal Network (192.168.110.117)
-
 Control Plane 2 Node:
--   OS : Core OS
--   RAM : 10GB
--   vCPU: 6
--   Disk: 60 GB
 -   Network: OCP Internal Network (192.168.110.118)
-
 Control Plane 3 Node:
--   OS : Core OS
--   RAM : 10GB
--   vCPU: 6
--   Disk: 60 GB
 -   Network: OCP Internal Network (192.168.110.119)
-
 Worker Node 1:
--   OS : Core OS
--   RAM : 12GB
--   vCPU: 8
--   Disk: 60 GB
 -   Network: OCP Internal Network (192.168.110.120)
-
 Worker Node 2:
--   OS : Core OS
--   RAM : 12GB
--   vCPU: 8
--   Disk: 60 GB
 -   Network: OCP Internal Network (192.168.110.121)
-
-**Note:** In KVM hypervisor, we have created host only network for ocp-internal.
-
 Use the following file and commands to create host only network in KVM,
 ```
 $ cat hostonly.xml
