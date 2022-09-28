@@ -20,4 +20,4 @@ $TTL 1W
 ;
 156.10.10.10.in-addr.arpa. IN PTR worker0.okd4.lamta.com.
 157.10.10.10.in-addr.arpa. IN PTR worker1.okd4.lamta.com.
-157.10.10.10.in-addr.arpa. IN PTR worker2.okd4.lamta.com.
+158.10.10.10.in-addr.arpa. IN PTR worker2.okd4.lamta.com.
