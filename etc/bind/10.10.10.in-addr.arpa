@@ -1,0 +1,23 @@
+$TTL 1W
+@   IN    SOA      ns1.lamta.com.     root (
+                   2019070700        ; serial
+                   3H                ; refresh (3 hours)
+                   30M               ; retry (30 minutes)
+                   2W                ; expiry (2 weeks)
+                   1W )              ; minimum (1 week)
+    IN    NS       ns1.lamta.com.
+;
+10.10.10.10.in-addr.arpa. IN PTR api.okd4.lamta.com.
+10.10.10.10.in-addr.arpa. IN PTR api-int.okd4.lamta.com.
+;
+10.10.10.10.in-addr.arpa. IN PTR bastion.okd4.lamta.com.
+
+152.10.10.10.in-addr.arpa. IN PTR bootstrap.okd4.lamta.com.
+;
+153.10.10.10.in-addr.arpa. IN PTR master0.okd4.lamta.com.
+154.10.10.10.in-addr.arpa. IN PTR master1.okd4.lamta.com.
+155.10.10.10.in-addr.arpa. IN PTR master2.okd4.lamta.com.
+;
+156.10.10.10.in-addr.arpa. IN PTR worker0.okd4.lamta.com.
+157.10.10.10.in-addr.arpa. IN PTR worker1.okd4.lamta.com.
+157.10.10.10.in-addr.arpa. IN PTR worker2.okd4.lamta.com.
