@@ -1,0 +1,29 @@
+$TTL 1W
+@   IN    SOA    ns1.lamta.com.    root (
+                 2019070700        ; serial
+                 3H                ; refresh (3 hours)
+                 30M               ; retry (30 minutes)
+                 2W                ; expiry (2 weeks)
+                 1W )              ; minimum (1 week)
+    IN    NS     ns1.lamta.com.
+    IN    MX 10  smtp.lamta.com.
+;
+ns1.lamta.com.            IN A 10.10.10.10
+smtp.lamta.com.           IN A 10.10.10.10
+;
+registry.lamta.com.       IN A 10.10.10.10
+api.okd4.lamta.com.       IN A 10.10.10.10
+api-int.okd4.lamta.com.   IN A 10.10.10.10
+;
+*.apps.okd4.lamta.com.    IN A 10.10.10.10
+;
+bastion.okd4.lamta.com.   IN A 10.10.10.10
+bootstrap.okd4.lamta.com. IN A 10.10.10.152
+;
+master0.okd4.lamta.com.   IN A 10.10.10.153
+master1.okd4.lamta.com.   IN A 10.10.10.154
+master2.okd4.lamta.com.   IN A 10.10.10.155
+;
+worker0.okd4.lamta.com.   IN A 10.10.10.156
+worker1.okd4.lamta.com.   IN A 10.10.10.157
+worker2.okd4.lamta.com.   IN A 10.10.10.158
